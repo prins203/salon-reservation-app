@@ -76,7 +76,8 @@ const BookingForm = () => {
         try {
             await axios.post('http://localhost:8000/api/send-otp', {
                 ...formData,
-                datetime: `${formData.date}T${formData.time}:00`
+                date: formData.date,
+                time: formData.time
             });
             
             // Navigate to OTP verification page with all booking details
@@ -85,7 +86,8 @@ const BookingForm = () => {
                     contact: formData.contact,
                     name: formData.name,
                     service: formData.service,
-                    datetime: `${formData.date}T${formData.time}:00`,
+                    date: formData.date,
+                    time: formData.time,
                     hair_artist_id: formData.hair_artist_id
                 } 
             });
@@ -182,14 +184,11 @@ const BookingForm = () => {
                     <MenuItem value="">
                         <em>Select a time slot</em>
                     </MenuItem>
-                    {availableSlots
-                        .filter(slot => slot.available)
-                        .map((slot, index) => (
-                            <MenuItem key={index} value={slot.start_time.split('T')[1].slice(0, 5)}>
-                                {slot.start_time.split('T')[1].slice(0, 5)}
-                            </MenuItem>
-                        ))
-                    }
+                    {availableSlots.map((slot, index) => (
+                        <MenuItem key={index} value={slot}>
+                            {slot}
+                        </MenuItem>
+                    ))}
                 </TextField>
 
                 <Button

@@ -24,20 +24,37 @@ const theme = createTheme({
 function Header() {
   const location = useLocation();
   const isLoginPage = location.pathname === '/hair-artist/login';
+  const isHairArtistPage = location.pathname.startsWith('/hair-artist/') && !isLoginPage;
+  const isHomePage = location.pathname === '/';
 
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Salon Booking System
       </Typography>
-      <Button
-        variant="contained"
-        color="secondary"
-        component={Link}
-        to={isLoginPage ? "/" : "/hair-artist/login"}
-      >
-        {isLoginPage ? "Book an Appointment" : "Login as Hair Artist"}
-      </Button>
+      <Box>
+        {isHomePage && (
+          <Button
+            variant="contained"
+            color="secondary"
+            component={Link}
+            to="/hair-artist/login"
+            sx={{ mr: 2 }}
+          >
+            Login as Hair Artist
+          </Button>
+        )}
+        {isLoginPage && (
+          <Button
+            variant="contained"
+            color="secondary"
+            component={Link}
+            to="/"
+          >
+            Book an Appointment
+          </Button>
+        )}
+      </Box>
     </Box>
   );
 }

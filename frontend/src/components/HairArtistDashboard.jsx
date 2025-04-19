@@ -28,7 +28,14 @@ const HairArtistDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const savedDate = localStorage.getItem('selectedDate');
+    return savedDate ? new Date(savedDate) : new Date();
+  });
+
+  useEffect(() => {
+    localStorage.setItem('selectedDate', selectedDate.toISOString());
+  }, [selectedDate]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -137,7 +144,7 @@ const HairArtistDashboard = () => {
                   <ListItem>
                     <ListItemText
                       primary={`${appointment.name} - ${appointment.service}`}
-                      secondary={`Time: ${new Date(appointment.datetime).toLocaleTimeString()}`}
+                      secondary={`Time: ${appointment.time}`}
                     />
                   </ListItem>
                   <Divider />

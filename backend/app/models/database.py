@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean, ForeignKey, func
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean, ForeignKey, func, Date, Time
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
@@ -37,13 +37,15 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    contact = Column(String)
+    name = Column(String, index=True)
+    email = Column(String)
+    phone = Column(String)
+    date = Column(Date)
+    time = Column(Time)
     service = Column(String)
-    datetime = Column(DateTime)
-    status = Column(String, default="pending")
-    created_at = Column(DateTime, default=func.now())
     hair_artist_id = Column(Integer, ForeignKey("hair_artists.id"))
+    status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class HairArtist(Base):
     __tablename__ = "hair_artists"

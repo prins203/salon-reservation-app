@@ -15,37 +15,62 @@ const VerifyOtp = () => {
     const location = useLocation();
     const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
-    const { contact, name, service, datetime, hair_artist_id } = location.state || {};
 
-    if (!contact || !name || !service || !datetime || !hair_artist_id) {
-        navigate('/');
-        return null;
+    // Check if we have the required state data
+    if (!location.state?.contact || !location.state?.name || !location.state?.service || 
+        !location.state?.date || !location.state?.time || !location.state?.hair_artist_id) {
+        return (
+            <Paper elevation={3} className="form-container">
+                <Typography variant="h4" component="h2" gutterBottom>
+                    Error
+                </Typography>
+                <Typography variant="body1" color="error" paragraph>
+                    Missing booking information. Please start over.
+                </Typography>
+                <Button
+                    variant="contained"
+                    onClick={() => navigate('/')}
+                    sx={{ mt: 2 }}
+                >
+                    Go Back
+                </Button>
+            </Paper>
+        );
     }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-
+        
         try {
             const response = await axios.post('http://localhost:8000/api/verify-otp', {
-                contact,
+                contact: location.state.contact,
                 code: otp,
-                name,
-                service,
-                datetime,
-                hair_artist_id
+                name: location.state.name,
+                service: location.state.service,
+                date: location.state.date,
+                time: location.state.time,
+                hair_artist_id: location.state.hair_artist_id
             });
-
-            if (response.data.message === 'OTP verified successfully') {
-                navigate('/confirmation');
+            
+            if (response.data.booking_id) {
+                navigate('/confirmation', { 
+                    state: { 
+                        bookingId: response.data.booking_id,
+                        name: location.state.name,
+                        service: location.state.service,
+                        date: location.state.date,
+                        time: location.state.time
+                    } 
+                });
             }
         } catch (error) {
+            console.error('Error verifying OTP:', error);
             if (error.response?.data?.detail === "This time slot is no longer available") {
                 setError('This time slot is no longer available. Please go back and select a different time.');
             } else {
                 setError('Invalid OTP. Please try again.');
             }
-            console.error('Error verifying OTP:', error);
         }
     };
 

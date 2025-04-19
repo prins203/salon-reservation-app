@@ -23,13 +23,15 @@ def create_otp_record(db: Session, contact: str) -> OTP:
     return otp_record
 
 def verify_otp(db: Session, contact: str, code: str) -> bool:
+    print(f"Looking for OTP record with contact: {contact}, code: {code}")
     otp_record = db.query(OTP).filter(
         OTP.contact == contact,
         OTP.code == code,
         OTP.expires_at > datetime.utcnow(),
         OTP.verified == False
-    ).first()
+    ).order_by(OTP.created_at.desc()).first()
     
+    print(f"Found OTP record: {otp_record}")
     if otp_record:
         otp_record.verified = True
         db.commit()
