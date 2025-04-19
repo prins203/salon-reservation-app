@@ -196,11 +196,13 @@ async def get_bookings(
 @router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
     try:
-        # Parse the booking date and time
-        booking_datetime = datetime.strptime(f"{booking.date} {booking.time}", "%Y-%m-%d %H:%M")
+        # Parse the booking date and time strings into Python objects
+        booking_date = datetime.strptime(booking.date, "%Y-%m-%d").date()
+        booking_time = datetime.strptime(booking.time, "%H:%M").time()
         
         # Check if the booking is in the past
         current_time = datetime.now()
+        booking_datetime = datetime.combine(booking_date, booking_time)
         if booking_datetime < current_time:
             raise HTTPException(
                 status_code=400,
@@ -209,8 +211,8 @@ async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
         
         # Check if the slot is available
         existing_booking = db.query(Booking).filter(
-            Booking.date == booking.date,
-            Booking.time == booking.time,
+            Booking.date == booking_date,
+            Booking.time == booking_time,
             Booking.hair_artist_id == booking.hair_artist_id,
             Booking.status == "confirmed"
         ).first()
@@ -221,13 +223,13 @@ async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
                 detail="This time slot is already booked"
             )
         
-        # Create new booking
+        # Create new booking with proper date and time objects
         db_booking = Booking(
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
-            date=booking.date,
-            time=booking.time,
+            date=booking_date,
+            time=booking_time,
             service=booking.service,
             hair_artist_id=booking.hair_artist_id,
             status="pending"
@@ -237,7 +239,12 @@ async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(db_booking)
         
-        return db_booking
+        # Convert the response to include string values for date and time
+        return {
+            **db_booking.__dict__,
+            'date': db_booking.date.strftime("%Y-%m-%d"),
+            'time': db_booking.time.strftime("%H:%M")
+        }
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e)) 

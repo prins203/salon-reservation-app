@@ -30,8 +30,11 @@ class Service(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
+    description = Column(String)
     price = Column(Float)
     duration = Column(Integer)  # in minutes
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 class Booking(Base):
     __tablename__ = "bookings"
