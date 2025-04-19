@@ -1,207 +1,199 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  TextField,
-  MenuItem,
-  Button,
-  Typography,
-  Paper,
-} from '@mui/material';
+import { Container, TextField, Button, MenuItem, Box, Typography, CircularProgress } from '@mui/material';
+import { bookingService } from '../api/services/bookingService';
+import { hairArtistService } from '../api/services/hairArtistService';
 
-const BookingForm = () => {
-    const navigate = useNavigate();
-    const [services] = useState([
-        { id: 1, name: 'Hair Cut', price: 30 }
-    ]);
-    const [hairArtists, setHairArtists] = useState([]);
-    const [availableSlots, setAvailableSlots] = useState([]);
-    const [formData, setFormData] = useState({
-        name: '',
-        contact: '',
-        service: '',
-        date: '',
-        time: '',
-        hair_artist_id: ''
-    });
+function BookingForm() {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    name: '',
+    contact: '',
+    service: '',
+    date: '',
+    time: '',
+    hair_artist_id: ''
+  });
+  const [services, setServices] = useState([]);
+  const [hairArtists, setHairArtists] = useState([]);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    useEffect(() => {
-        const fetchHairArtists = async () => {
-            try {
-                const response = await axios.get('http://localhost:8000/api/hair-artists/public');
-                setHairArtists(response.data);
-            } catch (error) {
-                console.error('Error fetching hair artists:', error);
-            }
-        };
-        fetchHairArtists();
-    }, []);
-
-    const handleDateChange = async (e) => {
-        const date = e.target.value;
-        setFormData({ ...formData, date });
-        
-        if (date && formData.hair_artist_id) {
-            try {
-                const response = await axios.get(
-                    `http://localhost:8000/api/available-slots?date=${date}&hair_artist_id=${formData.hair_artist_id}`
-                );
-                setAvailableSlots(response.data);
-            } catch (error) {
-                console.error('Error fetching slots:', error);
-            }
-        }
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [servicesData, artistsData] = await Promise.all([
+          bookingService.getServices(),
+          hairArtistService.getHairArtistsPublic()
+        ]);
+        setServices(servicesData);
+        setHairArtists(artistsData);
+      } catch (err) {
+        setError('Failed to load services and artists');
+        console.error('Error fetching data:', err);
+      } finally {
+        setLoading(false);
+      }
     };
+    fetchData();
+  }, []);
 
-    const handleHairArtistChange = async (e) => {
-        const hair_artist_id = e.target.value;
-        setFormData({ ...formData, hair_artist_id });
-        
-        if (formData.date && hair_artist_id) {
-            try {
-                const response = await axios.get(
-                    `http://localhost:8000/api/available-slots?date=${formData.date}&hair_artist_id=${hair_artist_id}`
-                );
-                setAvailableSlots(response.data);
-            } catch (error) {
-                console.error('Error fetching slots:', error);
-            }
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        
+  useEffect(() => {
+    if (formData.date && formData.hair_artist_id) {
+      const fetchSlots = async () => {
         try {
-            await axios.post('http://localhost:8000/api/send-otp', {
-                ...formData,
-                date: formData.date,
-                time: formData.time
-            });
-            
-            // Navigate to OTP verification page with all booking details
-            navigate('/verify-otp', { 
-                state: { 
-                    contact: formData.contact,
-                    name: formData.name,
-                    service: formData.service,
-                    date: formData.date,
-                    time: formData.time,
-                    hair_artist_id: formData.hair_artist_id
-                } 
-            });
-        } catch (error) {
-            console.error('Error submitting booking:', error);
-            alert('Failed to submit booking. Please try again.');
+          setLoading(true);
+          const slots = await bookingService.getAvailableSlots(formData.date, formData.hair_artist_id);
+          setAvailableSlots(slots);
+        } catch (err) {
+          setError('Failed to load available slots');
+          console.error('Error fetching slots:', err);
+        } finally {
+          setLoading(false);
         }
-    };
+      };
+      fetchSlots();
+    }
+  }, [formData.date, formData.hair_artist_id]);
 
-    return (
-        <Paper elevation={3} className="form-container">
-            <Typography variant="h4" component="h2" gutterBottom>
-                Book Your Appointment
-            </Typography>
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-                <TextField
-                    fullWidth
-                    label="Name"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    margin="normal"
-                />
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
-                <TextField
-                    fullWidth
-                    label="Email"
-                    type="email"
-                    required
-                    value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                    margin="normal"
-                />
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      setError('');
+      await bookingService.createBooking(formData);
+      navigate('/booking/success');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to create booking');
+      console.error('Error creating booking:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                <TextField
-                    fullWidth
-                    select
-                    label="Hair Artist"
-                    required
-                    value={formData.hair_artist_id}
-                    onChange={handleHairArtistChange}
-                    margin="normal"
-                >
-                    <MenuItem value="">
-                        <em>Select a hair artist</em>
-                    </MenuItem>
-                    {hairArtists.map(artist => (
-                        <MenuItem key={artist.id} value={artist.id}>
-                            {artist.name}
-                        </MenuItem>
-                    ))}
-                </TextField>
+  return (
+    <Container maxWidth="sm">
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Book an Appointment
+        </Typography>
 
-                <TextField
-                    fullWidth
-                    select
-                    label="Service"
-                    required
-                    value={formData.service}
-                    onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-                    margin="normal"
-                >
-                    <MenuItem value="">
-                        <em>Select a service</em>
-                    </MenuItem>
-                    {services.map(service => (
-                        <MenuItem key={service.id} value={service.name}>
-                            {service.name} (${service.price})
-                        </MenuItem>
-                    ))}
-                </TextField>
+        {error && (
+          <Typography color="error" sx={{ mb: 2 }}>
+            {error}
+          </Typography>
+        )}
 
-                <TextField
-                    fullWidth
-                    type="date"
-                    label="Date"
-                    required
-                    value={formData.date}
-                    onChange={handleDateChange}
-                    margin="normal"
-                    InputLabelProps={{ shrink: true }}
-                />
+        <form onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            label="Name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            required
+            margin="normal"
+          />
 
-                <TextField
-                    fullWidth
-                    select
-                    label="Time"
-                    required
-                    value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    margin="normal"
-                    disabled={!formData.hair_artist_id || !formData.date}
-                >
-                    <MenuItem value="">
-                        <em>Select a time slot</em>
-                    </MenuItem>
-                    {availableSlots.map((slot, index) => (
-                        <MenuItem key={index} value={slot}>
-                            {slot}
-                        </MenuItem>
-                    ))}
-                </TextField>
+          <TextField
+            fullWidth
+            label="Email"
+            name="contact"
+            type="email"
+            value={formData.contact}
+            onChange={handleChange}
+            required
+            margin="normal"
+          />
 
-                <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    sx={{ mt: 3 }}
-                >
-                    Book Appointment
-                </Button>
-            </Box>
-        </Paper>
-    );
-};
+          <TextField
+            fullWidth
+            select
+            label="Service"
+            name="service"
+            value={formData.service}
+            onChange={handleChange}
+            required
+            margin="normal"
+          >
+            {services.map((service) => (
+              <MenuItem key={service.id} value={service.name}>
+                {service.name} - ${service.price}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            fullWidth
+            select
+            label="Hair Artist"
+            name="hair_artist_id"
+            value={formData.hair_artist_id}
+            onChange={handleChange}
+            required
+            margin="normal"
+          >
+            {hairArtists.map((artist) => (
+              <MenuItem key={artist.id} value={artist.id}>
+                {artist.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            fullWidth
+            type="date"
+            label="Date"
+            name="date"
+            value={formData.date}
+            onChange={handleChange}
+            required
+            margin="normal"
+            InputLabelProps={{ shrink: true }}
+          />
+
+          <TextField
+            fullWidth
+            select
+            label="Time"
+            name="time"
+            value={formData.time}
+            onChange={handleChange}
+            required
+            margin="normal"
+            disabled={!formData.date || !formData.hair_artist_id}
+          >
+            {availableSlots.map((slot) => (
+              <MenuItem key={slot} value={slot}>
+                {slot}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            fullWidth
+            disabled={loading}
+            sx={{ mt: 3 }}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Book Appointment'}
+          </Button>
+        </form>
+      </Box>
+    </Container>
+  );
+}
 
 export default BookingForm; 

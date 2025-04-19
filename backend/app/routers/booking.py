@@ -15,7 +15,7 @@ from ..utils.otp import create_otp_record, verify_otp
 from ..utils.email import send_otp_email
 from ..routers.auth import get_current_hair_artist
 
-router = APIRouter()
+router = APIRouter(prefix="/booking")
 
 # Hardcoded services for demo
 SERVICES = [

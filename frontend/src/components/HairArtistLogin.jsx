@@ -1,89 +1,81 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import {
-  Box,
-  TextField,
-  Button,
-  Typography,
-  Paper,
-  Alert,
-} from '@mui/material';
+import { Container, TextField, Button, Box, Typography, CircularProgress } from '@mui/material';
+import { hairArtistService } from '../api/services';
 
-const HairArtistLogin = () => {
+function HairArtistLogin() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
+    password: ''
   });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     setError('');
 
     try {
-      const formDataToSend = new URLSearchParams();
-      formDataToSend.append('username', formData.email);
-      formDataToSend.append('password', formData.password);
-
-      const response = await axios.post('http://localhost:8000/api/token', formDataToSend, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-
-      // Store the token
-      localStorage.setItem('token', response.data.access_token);
-      
-      // Redirect to hair artist dashboard
+      const response = await hairArtistService.login(formData);
+      localStorage.setItem('token', response.access_token);
       navigate('/hair-artist/dashboard');
-    } catch (error) {
-      setError('Invalid email or password');
-      console.error('Login error:', error);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to login');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Paper elevation={3} sx={{ maxWidth: 400, mx: 'auto', p: 4, mt: 4 }}>
-      <Typography variant="h4" component="h2" gutterBottom align="center">
-        Hair Artist Login
-      </Typography>
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      <Box component="form" onSubmit={handleSubmit}>
+    <Container maxWidth="sm">
+      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          Hair Artist Login
+        </Typography>
+        
+        {error && (
+          <Typography color="error" sx={{ mb: 2 }}>
+            {error}
+          </Typography>
+        )}
+
         <TextField
           fullWidth
           label="Email"
           type="email"
-          required
+          name="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          required
           margin="normal"
         />
+
         <TextField
           fullWidth
           label="Password"
           type="password"
-          required
+          name="password"
           value={formData.password}
           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+          required
           margin="normal"
         />
+
         <Button
           type="submit"
           variant="contained"
+          color="primary"
           fullWidth
           sx={{ mt: 3 }}
+          disabled={loading}
         >
-          Login
+          {loading ? <CircularProgress size={24} /> : 'Login'}
         </Button>
       </Box>
-    </Paper>
+    </Container>
   );
-};
+}
 
 export default HairArtistLogin; 
