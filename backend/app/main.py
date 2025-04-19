@@ -1,6 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import booking
+from sqlalchemy.orm import Session
+from .routers import booking, services, hair_artists, auth
+from .models.database import get_db
+from datetime import datetime
 
 app = FastAPI(title="Salon Booking API")
 
@@ -15,7 +18,28 @@ app.add_middleware(
 
 # Include routers
 app.include_router(booking.router, prefix="/api", tags=["booking"])
+app.include_router(services.router, prefix="/api", tags=["services"])
+app.include_router(hair_artists.router, prefix="/api", tags=["hair_artists"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to Salon Booking API"} 
+    return {"message": "Welcome to Salon Booking API"}
+
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        # Test database connection
+        db.execute("SELECT 1")
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        } 

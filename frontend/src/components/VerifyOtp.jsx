@@ -15,9 +15,9 @@ const VerifyOtp = () => {
     const location = useLocation();
     const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
-    const { contact, name, service, datetime } = location.state || {};
+    const { contact, name, service, datetime, hair_artist_id } = location.state || {};
 
-    if (!contact || !name || !service || !datetime) {
+    if (!contact || !name || !service || !datetime || !hair_artist_id) {
         navigate('/');
         return null;
     }
@@ -32,7 +32,8 @@ const VerifyOtp = () => {
                 code: otp,
                 name,
                 service,
-                datetime
+                datetime,
+                hair_artist_id
             });
 
             if (response.data.message === 'OTP verified successfully') {

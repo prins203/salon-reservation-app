@@ -7,6 +7,7 @@ class BookingRequest(BaseModel):
     contact: str
     service: str
     datetime: datetime
+    hair_artist_id: int
 
 class OTPRequest(BaseModel):
     contact: str
@@ -14,12 +15,24 @@ class OTPRequest(BaseModel):
     name: str
     service: str
     datetime: datetime
+    hair_artist_id: int
 
-class Service(BaseModel):
-    id: int
+class ServiceBase(BaseModel):
     name: str
+    description: str
     duration: int  # in minutes
     price: float
+
+class ServiceCreate(ServiceBase):
+    pass
+
+class Service(ServiceBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
 
 class TimeSlot(BaseModel):
     start_time: datetime
@@ -36,4 +49,53 @@ class BookingResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+class Booking(BaseModel):
+    id: int
+    name: str
+    contact: str
+    service: str
+    datetime: datetime
+    status: str
+    created_at: datetime
+    hair_artist_id: int
+
+    class Config:
+        from_attributes = True
+
+class OTPVerification(BaseModel):
+    contact: str
+    code: str
+    name: str
+    service: str
+    datetime: str
+    hair_artist_id: int
+
+class HairArtist(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    is_admin: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class HairArtistCreate(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    is_admin: bool = False
+
+class HairArtistLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    is_admin: Optional[bool] = None 

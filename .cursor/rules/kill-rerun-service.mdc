@@ -1,0 +1,38 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Whenever I run a Node.js or Python application, please ensure the following steps are always followed:
+
+---
+
+### 🔁 1. **Kill any app running on the expected port before rerunning**
+- Before starting the app, check if the target port (e.g., 3000 for Node, 8000 for Python) is already in use.
+- If it is, automatically **kill the process** using that port.
+  - On macOS/Linux: `lsof -ti:<PORT> | xargs kill -9`
+  - On Windows: `netstat -ano | findstr :<PORT>` followed by `taskkill /PID <PID> /F`
+
+---
+
+### 📦 2. **Install dependencies when they're added**
+- If any dependencies are added or modified in:
+  - `package.json` (Node.js)
+  - `requirements.txt` / `pyproject.toml` (Python)
+- Automatically run:
+  - `npm install` or `yarn install` (Node)
+  - `pip install -r requirements.txt` or `pip install .` (Python)
+- This avoids module-not-found errors due to uninstalled packages.
+
+---
+
+### 📁 3. **Run the app from the correct project root**
+- Always detect and run the app from the **correct directory**, typically where:
+  - The `package.json` (for Node) or
+  - `requirements.txt` / `main.py` (for Python) is located.
+- Never run the app from a parent or sibling folder that doesn’t contain the environment or entry file.
+- If not already in the right folder, **navigate to it automatically** before executing the command.
+
+---
+
+Make this the default behavior for all future runs unless I specifically override it.

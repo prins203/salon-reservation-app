@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,22 +15,54 @@ const BookingForm = () => {
     const [services] = useState([
         { id: 1, name: 'Hair Cut', price: 30 }
     ]);
+    const [hairArtists, setHairArtists] = useState([]);
     const [availableSlots, setAvailableSlots] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         contact: '',
         service: '',
         date: '',
-        time: ''
+        time: '',
+        hair_artist_id: ''
     });
+
+    useEffect(() => {
+        const fetchHairArtists = async () => {
+            try {
+                const response = await axios.get('http://localhost:8000/api/hair-artists/public');
+                setHairArtists(response.data);
+            } catch (error) {
+                console.error('Error fetching hair artists:', error);
+            }
+        };
+        fetchHairArtists();
+    }, []);
 
     const handleDateChange = async (e) => {
         const date = e.target.value;
         setFormData({ ...formData, date });
         
-        if (date) {
+        if (date && formData.hair_artist_id) {
             try {
-                const response = await axios.get(`http://localhost:8000/api/available-slots?date=${date}`);
+                const response = await axios.get(
+                    `http://localhost:8000/api/available-slots?date=${date}&hair_artist_id=${formData.hair_artist_id}`
+                );
+                setAvailableSlots(response.data);
+            } catch (error) {
+                console.error('Error fetching slots:', error);
+            }
+        }
+    };
+
+    const handleHairArtistChange = async (e) => {
+        const hair_artist_id = e.target.value;
+        setFormData({ ...formData, hair_artist_id });
+        
+        if (formData.date && hair_artist_id) {
+            try {
+                const response = await axios.get(
+                    `http://localhost:8000/api/available-slots?date=${formData.date}&hair_artist_id=${hair_artist_id}`
+                );
                 setAvailableSlots(response.data);
             } catch (error) {
                 console.error('Error fetching slots:', error);
@@ -53,7 +85,8 @@ const BookingForm = () => {
                     contact: formData.contact,
                     name: formData.name,
                     service: formData.service,
-                    datetime: `${formData.date}T${formData.time}:00`
+                    datetime: `${formData.date}T${formData.time}:00`,
+                    hair_artist_id: formData.hair_artist_id
                 } 
             });
         } catch (error) {
@@ -86,6 +119,25 @@ const BookingForm = () => {
                     onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
                     margin="normal"
                 />
+
+                <TextField
+                    fullWidth
+                    select
+                    label="Hair Artist"
+                    required
+                    value={formData.hair_artist_id}
+                    onChange={handleHairArtistChange}
+                    margin="normal"
+                >
+                    <MenuItem value="">
+                        <em>Select a hair artist</em>
+                    </MenuItem>
+                    {hairArtists.map(artist => (
+                        <MenuItem key={artist.id} value={artist.id}>
+                            {artist.name}
+                        </MenuItem>
+                    ))}
+                </TextField>
 
                 <TextField
                     fullWidth
@@ -125,6 +177,7 @@ const BookingForm = () => {
                     value={formData.time}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                     margin="normal"
+                    disabled={!formData.hair_artist_id || !formData.date}
                 >
                     <MenuItem value="">
                         <em>Select a time slot</em>
