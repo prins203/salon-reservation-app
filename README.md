@@ -1,87 +1,97 @@
-# Salon Booking System
+# Salon Reservation System
 
-A full-stack web application for booking salon appointments with email OTP verification.
+A full-stack web application for managing salon appointments with time slot management and OTP verification.
+
+## Features
+
+- User-friendly booking interface with Material-UI components
+- Real-time availability checking for appointment slots
+- OTP verification for booking confirmation
+- Prevention of double bookings
+- Responsive design for all devices
 
 ## Tech Stack
 
-- **Frontend**: React with Tailwind CSS
-- **Backend**: FastAPI (Python)
-- **Database**: SQLite (Development) / PostgreSQL (Production)
-- **Email Service**: SendGrid
+### Frontend
+- React.js
+- Material-UI (MUI)
+- React Router DOM
 
-## Prerequisites
-
-- Node.js (v14 or higher)
-- Python (v3.8 or higher)
-- SendGrid account and API key
+### Backend
+- FastAPI
+- SQLite Database
+- SQLAlchemy ORM
+- Pydantic for data validation
 
 ## Setup Instructions
 
 ### Backend Setup
 
 1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+```bash
+cd backend
+```
 
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+2. Create a virtual environment and activate it:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
+```
 
 3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-4. Create a `.env` file in the backend directory with your SendGrid credentials:
-   ```
-   SENDGRID_API_KEY=your_sendgrid_api_key_here
-   FROM_EMAIL=your_verified_sender_email@example.com
-   ```
+4. Run the FastAPI server:
+```bash
+uvicorn app.main:app --reload
+```
 
-5. Run the backend server:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+The backend will be running on `http://localhost:8000`
 
 ### Frontend Setup
 
 1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+```bash
+cd frontend
+```
 
 2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 3. Start the development server:
-   ```bash
-   npm start
-   ```
+```bash
+npm start
+```
 
-## Features
-
-- User-friendly booking form
-- Email OTP verification
-- Available time slot selection
-- Service selection with pricing
-- Booking confirmation
+The frontend will be running on `http://localhost:3000`
 
 ## API Endpoints
 
-- `POST /api/send-otp`: Send OTP to user's email
+- `POST /api/available-slots`: Get available time slots for a specific date
+- `POST /api/send-otp`: Send OTP for booking verification
 - `POST /api/verify-otp`: Verify OTP and create booking
-- `GET /api/services`: Get list of available services
-- `GET /api/available-slots`: Get available time slots for a date
 
-## Development
+## Known Issues
 
-The application uses SQLite for development. For production, you can switch to PostgreSQL by updating the database URL in `backend/app/models/database.py`.
+- Email OTP delivery functionality is pending implementation
+- Currently using console logs for OTP display
+
+## Future Improvements
+
+- Implement email OTP delivery
+- Add admin dashboard for managing bookings
+- Implement booking cancellation feature
+- Add service duration management
+- Add staff management system
+
+## Contributing
+
+Feel free to submit issues and enhancement requests.
 
 ## License
 
-MIT 
+[MIT](https://choosealicense.com/licenses/mit/) 
