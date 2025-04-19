@@ -1,24 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, TextField, Button, MenuItem, Box, Typography, CircularProgress } from '@mui/material';
+import { Container, TextField, Button, MenuItem, Box, Typography, CircularProgress, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { bookingService } from '../api/services/bookingService';
 import { hairArtistService } from '../api/services/hairArtistService';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { format, parseISO } from 'date-fns';
 
 function BookingForm() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    name: '',
-    contact: '',
-    service: '',
-    date: '',
-    time: '',
-    hair_artist_id: ''
+  const [formData, setFormData] = useState(() => {
+    const savedData = localStorage.getItem('bookingFormData');
+    return savedData ? JSON.parse(savedData) : {
+      name: '',
+      contact: '',
+      service: '',
+      date: '',
+      time: '',
+      hair_artist_id: ''
+    };
   });
   const [services, setServices] = useState([]);
   const [hairArtists, setHairArtists] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dateOption, setDateOption] = useState('today');
+  const [artistAvailability, setArtistAvailability] = useState({});
+
+  const fetchAvailableSlots = useCallback(async (date, artistId) => {
+    try {
+      setLoading(true);
+      const slots = await bookingService.getAvailableSlots(date, artistId);
+      setAvailableSlots(slots);
+      
+      // Auto-select the earliest available time
+      if (slots.length > 0) {
+        setFormData(prev => ({ ...prev, time: slots[0] }));
+      } else {
+        setFormData(prev => ({ ...prev, time: '' }));
+      }
+    } catch (err) {
+      setError('Failed to load available slots');
+      console.error('Error fetching slots:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchArtistAvailability = useCallback(async (artists, date) => {
+    try {
+      const availability = {};
+      for (const artist of artists) {
+        try {
+          const slots = await bookingService.getAvailableSlots(date, artist.id);
+          availability[artist.id] = slots.length > 0 ? slots[0] : 'No slots available';
+        } catch (err) {
+          availability[artist.id] = 'Error loading availability';
+        }
+      }
+      setArtistAvailability(availability);
+    } catch (err) {
+      console.error('Error fetching artist availability:', err);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,29 +86,55 @@ function BookingForm() {
   }, []);
 
   useEffect(() => {
-    if (formData.date && formData.hair_artist_id) {
-      const fetchSlots = async () => {
-        try {
-          setLoading(true);
-          const slots = await bookingService.getAvailableSlots(formData.date, formData.hair_artist_id);
-          setAvailableSlots(slots);
-        } catch (err) {
-          setError('Failed to load available slots');
-          console.error('Error fetching slots:', err);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchSlots();
+    if (formData.hair_artist_id) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const selectedDate = dateOption === 'today' ? today : 
+                          dateOption === 'tomorrow' ? tomorrow : 
+                          formData.date ? parseISO(formData.date) : today;
+      
+      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+      setFormData(prev => ({ ...prev, date: formattedDate }));
     }
-  }, [formData.date, formData.hair_artist_id]);
+  }, [formData.hair_artist_id, dateOption, formData.date]);
+
+  useEffect(() => {
+    if (formData.date && hairArtists.length > 0) {
+      fetchArtistAvailability(hairArtists, formData.date);
+    }
+  }, [formData.date, hairArtists, fetchArtistAvailability]);
+
+  useEffect(() => {
+    if (formData.date && formData.hair_artist_id) {
+      fetchAvailableSlots(formData.date, formData.hair_artist_id);
+    }
+  }, [formData.date, formData.hair_artist_id, fetchAvailableSlots]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    const newFormData = { ...formData, [name]: value };
+    setFormData(newFormData);
+    localStorage.setItem('bookingFormData', JSON.stringify(newFormData));
+  };
+
+  const handleDateOptionChange = (event, newOption) => {
+    if (newOption !== null) {
+      setDateOption(newOption);
+    }
+  };
+
+  const handleCustomDateChange = (date) => {
+    if (date) {
+      setDateOption('custom');
+      // Create a new date object to avoid timezone issues
+      const newDate = new Date(date);
+      newDate.setHours(0, 0, 0, 0);
+      const formattedDate = format(newDate, 'yyyy-MM-dd');
+      setFormData(prev => ({ ...prev, date: formattedDate }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -72,6 +143,7 @@ function BookingForm() {
       setLoading(true);
       setError('');
       await bookingService.createBooking(formData);
+      localStorage.removeItem('bookingFormData');
       navigate('/booking/success');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create booking');
@@ -133,6 +205,31 @@ function BookingForm() {
             ))}
           </TextField>
 
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <ToggleButtonGroup
+              value={dateOption}
+              exclusive
+              onChange={handleDateOptionChange}
+              fullWidth
+            >
+              <ToggleButton value="today">Today</ToggleButton>
+              <ToggleButton value="tomorrow">Tomorrow</ToggleButton>
+              <ToggleButton value="custom">Pick Date</ToggleButton>
+            </ToggleButtonGroup>
+
+            {dateOption === 'custom' && (
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Select Date"
+                  value={formData.date ? parseISO(formData.date) : null}
+                  onChange={handleCustomDateChange}
+                  minDate={new Date()}
+                  sx={{ mt: 2, width: '100%' }}
+                />
+              </LocalizationProvider>
+            )}
+          </Box>
+
           <TextField
             fullWidth
             select
@@ -145,22 +242,10 @@ function BookingForm() {
           >
             {hairArtists.map((artist) => (
               <MenuItem key={artist.id} value={artist.id}>
-                {artist.name}
+                {artist.name} - {artistAvailability[artist.id] || 'Loading...'}
               </MenuItem>
             ))}
           </TextField>
-
-          <TextField
-            fullWidth
-            type="date"
-            label="Date"
-            name="date"
-            value={formData.date}
-            onChange={handleChange}
-            required
-            margin="normal"
-            InputLabelProps={{ shrink: true }}
-          />
 
           <TextField
             fullWidth
