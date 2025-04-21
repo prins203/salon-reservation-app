@@ -6,7 +6,7 @@ export const hairArtistService = {
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
 
-    const response = await apiClient.post('/api/token', formData, {
+    const response = await apiClient.post('/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -15,34 +15,34 @@ export const hairArtistService = {
   },
 
   getBookings: async (date) => {
-    const response = await apiClient.get('/api/booking/bookings', {
+    const response = await apiClient.get('/booking/bookings', {
       params: { date }
     });
     return response.data;
   },
 
   getHairArtists: async () => {
-    const response = await apiClient.get('/api/hair-artists/');
+    const response = await apiClient.get('/hair-artists/');
     return response.data;
   },
 
   getHairArtistsPublic: async () => {
-    const response = await apiClient.get('/api/hair-artists/public');
+    const response = await apiClient.get('/hair-artists/public');
     return response.data;
   },
 
   createHairArtist: async (artistData) => {
-    const response = await apiClient.post('/api/hair-artists/', artistData);
+    const response = await apiClient.post('/hair-artists/', artistData);
     return response.data;
   },
 
   deleteHairArtist: async (artistId) => {
-    const response = await apiClient.delete(`/api/hair-artists/${artistId}`);
+    const response = await apiClient.delete(`/hair-artists/${artistId}`);
     return response.data;
   },
 
   getCurrentUser: async () => {
-    const response = await apiClient.get('/api/hair-artists/me');
+    const response = await apiClient.get('/hair-artists/me');
     return response.data;
   }
 }; 

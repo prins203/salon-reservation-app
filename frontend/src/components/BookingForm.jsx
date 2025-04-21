@@ -28,35 +28,21 @@ function BookingForm() {
   const [dateOption, setDateOption] = useState('today');
   const [artistAvailability, setArtistAvailability] = useState({});
 
-  const fetchAvailableSlots = useCallback(async (date, artistId) => {
-    try {
-      setLoading(true);
-      const slots = await bookingService.getAvailableSlots(date, artistId);
-      setAvailableSlots(slots);
-      
-      // Auto-select the earliest available time
-      if (slots.length > 0) {
-        setFormData(prev => ({ ...prev, time: slots[0] }));
-      } else {
-        setFormData(prev => ({ ...prev, time: '' }));
-      }
-    } catch (err) {
-      setError('Failed to load available slots');
-      console.error('Error fetching slots:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const fetchArtistAvailability = useCallback(async (artists, date) => {
     try {
       const availability = {};
       for (const artist of artists) {
         try {
           const slots = await bookingService.getAvailableSlots(date, artist.id);
-          availability[artist.id] = slots.length > 0 ? slots[0] : 'No slots available';
+          availability[artist.id] = {
+            firstSlot: slots.length > 0 ? slots[0] : 'No slots available',
+            allSlots: slots
+          };
         } catch (err) {
-          availability[artist.id] = 'Error loading availability';
+          availability[artist.id] = {
+            firstSlot: 'Error loading availability',
+            allSlots: []
+          };
         }
       }
       setArtistAvailability(availability);
@@ -108,10 +94,18 @@ function BookingForm() {
   }, [formData.date, hairArtists, fetchArtistAvailability]);
 
   useEffect(() => {
-    if (formData.date && formData.hair_artist_id) {
-      fetchAvailableSlots(formData.date, formData.hair_artist_id);
+    if (formData.date && formData.hair_artist_id && artistAvailability[formData.hair_artist_id]) {
+      setAvailableSlots(artistAvailability[formData.hair_artist_id].allSlots);
+      
+      // Auto-select the earliest available time
+      const slots = artistAvailability[formData.hair_artist_id].allSlots;
+      if (slots.length > 0) {
+        setFormData(prev => ({ ...prev, time: slots[0] }));
+      } else {
+        setFormData(prev => ({ ...prev, time: '' }));
+      }
     }
-  }, [formData.date, formData.hair_artist_id, fetchAvailableSlots]);
+  }, [formData.date, formData.hair_artist_id, artistAvailability]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -142,12 +136,13 @@ function BookingForm() {
     try {
       setLoading(true);
       setError('');
-      await bookingService.createBooking(formData);
-      localStorage.removeItem('bookingFormData');
-      navigate('/booking/success');
+      // First send OTP
+      await bookingService.sendOtp(formData);
+      // Navigate to OTP verification page with form data
+      navigate('/verify-otp', { state: formData });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create booking');
-      console.error('Error creating booking:', err);
+      setError(err.response?.data?.detail || 'Failed to send OTP');
+      console.error('Error sending OTP:', err);
     } finally {
       setLoading(false);
     }
@@ -242,7 +237,7 @@ function BookingForm() {
           >
             {hairArtists.map((artist) => (
               <MenuItem key={artist.id} value={artist.id}>
-                {artist.name} - {artistAvailability[artist.id] || 'Loading...'}
+                {artist.name} - {artistAvailability[artist.id]?.firstSlot || 'Loading...'}
               </MenuItem>
             ))}
           </TextField>

@@ -25,6 +25,12 @@ A full-stack web application for managing salon appointments with time slot mana
 
 ## Setup Instructions
 
+### Prerequisites
+
+- Python 3.9+
+- Node.js 14+
+- npm or yarn
+
 ### Backend Setup
 
 1. Navigate to the backend directory:
@@ -43,7 +49,16 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Run the FastAPI server:
+4. Set up the database:
+```bash
+# Run migrations
+alembic upgrade head
+
+# Seed the database with initial data
+PYTHONPATH=$PYTHONPATH:. python -m app.scripts.seed_db
+```
+
+5. Run the FastAPI server:
 ```bash
 uvicorn app.main:app --reload
 ```
@@ -68,6 +83,56 @@ npm start
 ```
 
 The frontend will be running on `http://localhost:3000`
+
+## Database Management
+
+### Migrations
+
+To create a new migration:
+```bash
+cd backend
+alembic revision --autogenerate -m "description of changes"
+```
+
+To apply migrations:
+```bash
+cd backend
+alembic upgrade head
+```
+
+### Seeding the Database
+
+The database can be seeded with initial data using:
+```bash
+cd backend
+PYTHONPATH=$PYTHONPATH:. python -m app.scripts.seed_db
+```
+
+This will:
+- Add default services (Haircut, Hair Coloring, Manicure, Pedicure)
+- Create hair artist accounts:
+  - Admin: admin@salon.com / admin123
+  - Hair Artists: john@salon.com / password123, jane@salon.com / password123
+
+## API Documentation
+
+Once the backend server is running, you can access the API documentation at:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Testing
+
+To run the backend tests:
+```bash
+cd backend
+pytest
+```
+
+To run the frontend tests:
+```bash
+cd frontend
+npm test
+```
 
 ## API Endpoints
 

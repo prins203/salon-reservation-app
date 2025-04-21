@@ -126,6 +126,10 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
         booking_date = datetime.strptime(date, "%Y-%m-%d").date()
         current_time = datetime.now()
         
+        # Check if the date is a Tuesday
+        if booking_date.weekday() == 1:  # 1 is Tuesday
+            return []
+        
         # If the date is today, only show slots from current time onwards
         if booking_date == current_time.date():
             start_time = current_time.replace(second=0, microsecond=0)
@@ -135,7 +139,7 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
         else:
             start_time = datetime.strptime("09:00", "%H:%M")
         
-        end_time = datetime.strptime("18:00", "%H:%M")
+        end_time = datetime.strptime("22:00", "%H:%M")  # Changed from 18:00 to 22:00
         
         # Get all bookings for the date
         bookings = db.query(Booking).filter(

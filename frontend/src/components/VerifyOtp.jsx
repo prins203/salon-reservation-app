@@ -16,9 +16,10 @@ function VerifyOtp() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+    
     try {
-      await bookingService.verifyOtp({
+      // Send all booking data along with the OTP
+      const otpData = {
         contact: bookingData.contact,
         code: otp,
         name: bookingData.name,
@@ -26,8 +27,14 @@ function VerifyOtp() {
         date: bookingData.date,
         time: bookingData.time,
         hair_artist_id: bookingData.hair_artist_id
-      });
-      navigate('/confirmation');
+      };
+      
+      const response = await bookingService.verifyOtp(otpData);
+      if (response.message === "OTP verified successfully") {
+        navigate('/confirmation', { state: { bookingId: response.booking_id } });
+      } else {
+        setError('Invalid OTP. Please try again.');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to verify OTP');
     } finally {
