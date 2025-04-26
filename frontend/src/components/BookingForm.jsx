@@ -17,7 +17,8 @@ function BookingForm() {
       service: '',
       date: '',
       time: '',
-      hair_artist_id: ''
+      hair_artist_id: '',
+      gender: 'male'
     };
   });
   const [services, setServices] = useState([]);
@@ -107,6 +108,25 @@ function BookingForm() {
     }
   }, [formData.date, formData.hair_artist_id, artistAvailability]);
 
+  const filteredHairArtists = hairArtists.filter(artist => {
+    if (!formData.gender) return true;
+    return artist.gender_expertise === 'both' || artist.gender_expertise === formData.gender;
+  });
+
+  const filteredServices = services.filter(service => {
+    if (!formData.gender) return true;
+    return service.gender_specificity === 'both' || service.gender_specificity === formData.gender;
+  });
+
+  // Reset service selection when gender changes
+  useEffect(() => {
+    if (formData.gender) {
+      const newFormData = { ...formData, service: '' };
+      setFormData(newFormData);
+      localStorage.setItem('bookingFormData', JSON.stringify(newFormData));
+    }
+  }, [formData.gender]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     const newFormData = { ...formData, [name]: value };
@@ -128,6 +148,14 @@ function BookingForm() {
       newDate.setHours(0, 0, 0, 0);
       const formattedDate = format(newDate, 'yyyy-MM-dd');
       setFormData(prev => ({ ...prev, date: formattedDate }));
+    }
+  };
+
+  const handleGenderChange = (e, newValue) => {
+    if (newValue !== null) {
+      const newFormData = { ...formData, gender: newValue, service: '' };
+      setFormData(newFormData);
+      localStorage.setItem('bookingFormData', JSON.stringify(newFormData));
     }
   };
 
@@ -183,6 +211,18 @@ function BookingForm() {
             margin="normal"
           />
 
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <ToggleButtonGroup
+              value={formData.gender}
+              exclusive
+              onChange={handleGenderChange}
+              fullWidth
+            >
+              <ToggleButton value="male">Male</ToggleButton>
+              <ToggleButton value="female">Female</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
           <TextField
             fullWidth
             select
@@ -193,7 +233,7 @@ function BookingForm() {
             required
             margin="normal"
           >
-            {services.map((service) => (
+            {filteredServices.map((service) => (
               <MenuItem key={service.id} value={service.name}>
                 {service.name} - ${service.price}
               </MenuItem>
@@ -235,9 +275,9 @@ function BookingForm() {
             required
             margin="normal"
           >
-            {hairArtists.map((artist) => (
+            {filteredHairArtists.map((artist) => (
               <MenuItem key={artist.id} value={artist.id}>
-                {artist.name} - {artistAvailability[artist.id]?.firstSlot || 'Loading...'}
+                {artist.name}
               </MenuItem>
             ))}
           </TextField>
@@ -245,13 +285,13 @@ function BookingForm() {
           <TextField
             fullWidth
             select
-            label="Time"
+            label={availableSlots.length === 0 ? "No Time Slot Available" : "Time"}
             name="time"
             value={formData.time}
             onChange={handleChange}
-            required
+            required={availableSlots.length === 0 ? false : true}
             margin="normal"
-            disabled={!formData.date || !formData.hair_artist_id}
+            disabled={!formData.date || !formData.hair_artist_id || availableSlots.length === 0}
           >
             {availableSlots.map((slot) => (
               <MenuItem key={slot} value={slot}>
