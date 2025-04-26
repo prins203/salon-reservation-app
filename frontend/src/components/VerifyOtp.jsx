@@ -26,7 +26,8 @@ function VerifyOtp() {
         service: bookingData.service,
         date: bookingData.date,
         time: bookingData.time,
-        hair_artist_id: bookingData.hair_artist_id
+        hair_artist_id: bookingData.hair_artist_id,
+        gender: bookingData.gender
       };
       
       const response = await bookingService.verifyOtp(otpData);
@@ -36,7 +37,15 @@ function VerifyOtp() {
         setError('Invalid OTP. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to verify OTP');
+      if (err.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          setError(err.response.data.detail.map(error => error.msg).join(', '));
+        } else {
+          setError(err.response.data.detail);
+        }
+      } else {
+        setError('Failed to verify OTP. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
