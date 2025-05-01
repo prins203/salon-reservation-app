@@ -416,7 +416,7 @@ function HairArtistDashboard() {
         </Box>
 
         <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <Paper elevation={3} sx={{ p: 2, height: 'calc(100vh - 220px)', minHeight: 600 }}>
+          <Paper elevation={3} sx={{ p: 2, height: 'auto', minHeight: 600 }}>
             {loading && events.length === 0 ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                 <CircularProgress />
@@ -434,7 +434,7 @@ function HairArtistDashboard() {
                 events={events}
                 eventClick={handleEventClick}
                 datesSet={handleDatesSet}
-                height="100%"
+                height="auto"
                 slotMinTime="08:00:00"
                 slotMaxTime="22:30:00"
                 allDaySlot={false}
