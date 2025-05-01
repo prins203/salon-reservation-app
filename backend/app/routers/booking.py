@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta, date, time
 from ..models.database import get_db, Booking, Service
 from ..models.schemas import (
@@ -172,18 +172,32 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
 @router.get("/bookings", response_model=List[BookingResponse])
 async def get_bookings(
     date: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_hair_artist = Depends(get_current_hair_artist)
 ):
     try:
-        # Parse the date string to date
-        target_date = datetime.strptime(date, "%Y-%m-%d").date()
-        
-        # Get all bookings for the specified date
-        bookings = db.query(Booking).filter(
-            Booking.date == target_date,
-            Booking.hair_artist_id == current_hair_artist.id
-        ).all()
+        if start_date and end_date:
+            # Parse the date range
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            
+            # Get all bookings for the specified date range
+            bookings = db.query(Booking).filter(
+                Booking.date >= start,
+                Booking.date <= end,
+                Booking.hair_artist_id == current_hair_artist.id
+            ).all()
+        else:
+            # Parse the single date string to date (backward compatibility)
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+            
+            # Get all bookings for the specified date
+            bookings = db.query(Booking).filter(
+                Booking.date == target_date,
+                Booking.hair_artist_id == current_hair_artist.id
+            ).all()
         
         # Convert datetime objects to strings in the response
         return [
@@ -194,8 +208,11 @@ async def get_bookings(
             }
             for booking in bookings
         ]
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid date format: {str(e)}. Use YYYY-MM-DD format."
+        )
 
 @router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):

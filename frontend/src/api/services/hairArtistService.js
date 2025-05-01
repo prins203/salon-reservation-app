@@ -14,10 +14,13 @@ export const hairArtistService = {
     return response.data;
   },
 
-  getBookings: async (date) => {
-    const response = await apiClient.get('/booking/bookings', {
-      params: { date }
-    });
+  getBookings: async (date, startDate, endDate) => {
+    // If start and end dates are provided, use date range endpoint
+    const params = startDate && endDate
+      ? { date, start_date: startDate, end_date: endDate }
+      : { date };
+      
+    const response = await apiClient.get('/booking/bookings', { params });
     return response.data;
   },
 
