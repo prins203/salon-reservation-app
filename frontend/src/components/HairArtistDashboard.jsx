@@ -445,7 +445,7 @@ function HairArtistDashboard() {
                 snapDuration={'00:30:00'}
                 businessHours={{
                   daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Sunday - Saturday
-                  startTime: '10:00',
+                  startTime: '08:00',
                   endTime: '22:00',
                 }}
                 weekends={true}
