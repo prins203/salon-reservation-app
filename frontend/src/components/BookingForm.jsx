@@ -5,21 +5,18 @@ import { bookingService } from '../api/services/bookingService';
 import { hairArtistService } from '../api/services/hairArtistService';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 
 function BookingForm() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState(() => {
-    const savedData = localStorage.getItem('bookingFormData');
-    return savedData ? JSON.parse(savedData) : {
-      name: '',
-      contact: '',
-      service: '',
-      date: '',
-      time: '',
-      hair_artist_id: '',
-      gender: 'male'
-    };
+  const [formData, setFormData] = useState({
+    name: localStorage.getItem('bookingName') || '',
+    contact: localStorage.getItem('bookingContact') || '',
+    service: '',
+    date: '',
+    time: '',
+    hair_artist_id: '',
+    gender: 'male'
   });
   const [services, setServices] = useState([]);
   const [hairArtists, setHairArtists] = useState([]);
@@ -29,33 +26,9 @@ function BookingForm() {
   const [dateOption, setDateOption] = useState('today');
   const [artistAvailability, setArtistAvailability] = useState({});
 
-  const fetchArtistAvailability = useCallback(async (artists, date) => {
-    try {
-      const availability = {};
-      for (const artist of artists) {
-        try {
-          const slots = await bookingService.getAvailableSlots(date, artist.id);
-          availability[artist.id] = {
-            firstSlot: slots.length > 0 ? slots[0] : 'No slots available',
-            allSlots: slots
-          };
-        } catch (err) {
-          availability[artist.id] = {
-            firstSlot: 'Error loading availability',
-            allSlots: []
-          };
-        }
-      }
-      setArtistAvailability(availability);
-    } catch (err) {
-      console.error('Error fetching artist availability:', err);
-    }
-  }, []);
-
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
         const [servicesData, artistsData] = await Promise.all([
           bookingService.getServices(),
           hairArtistService.getHairArtistsPublic()
@@ -63,39 +36,44 @@ function BookingForm() {
         setServices(servicesData);
         setHairArtists(artistsData);
       } catch (err) {
-        setError('Failed to load services and artists');
+        setError('Failed to fetch services and artists');
         console.error('Error fetching data:', err);
-      } finally {
-        setLoading(false);
       }
     };
     fetchData();
   }, []);
 
-  useEffect(() => {
-    if (formData.hair_artist_id) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      const selectedDate = dateOption === 'today' ? today : 
-                          dateOption === 'tomorrow' ? tomorrow : 
-                          formData.date ? parseISO(formData.date) : today;
-      
-      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-      setFormData(prev => ({ ...prev, date: formattedDate }));
+  const fetchArtistAvailability = useCallback(async (artists, date) => {
+    try {
+      const availability = {};
+      for (const artist of artists) {
+        const slots = await bookingService.getAvailableSlots(date, artist.id);
+        availability[artist.id] = {
+          allSlots: slots,
+          availableSlots: slots // The backend already returns only available slots
+        };
+      }
+      setArtistAvailability(availability);
+    } catch (err) {
+      console.error('Error fetching artist availability:', err);
     }
-  }, [formData.hair_artist_id, dateOption, formData.date]);
+  }, []);
 
+  // Fetch availability whenever date or hair artists change
   useEffect(() => {
-    if (formData.date && hairArtists.length > 0) {
-      fetchArtistAvailability(hairArtists, formData.date);
+    if (hairArtists.length > 0) {
+      const dateToUse = formData.date || (dateOption === 'today' ? format(new Date(), 'yyyy-MM-dd') : 
+                        dateOption === 'tomorrow' ? format(addDays(new Date(), 1), 'yyyy-MM-dd') : '');
+      
+      if (dateToUse) {
+        fetchArtistAvailability(hairArtists, dateToUse);
+      }
     }
-  }, [formData.date, hairArtists, fetchArtistAvailability]);
+  }, [formData.date, hairArtists, dateOption, fetchArtistAvailability]);
 
+  // Update available slots whenever date, hair artist, or availability changes
   useEffect(() => {
-    if (formData.date && formData.hair_artist_id && artistAvailability[formData.hair_artist_id]) {
+    if (formData.hair_artist_id && artistAvailability[formData.hair_artist_id]) {
       setAvailableSlots(artistAvailability[formData.hair_artist_id].allSlots);
       
       // Auto-select the earliest available time
@@ -105,8 +83,11 @@ function BookingForm() {
       } else {
         setFormData(prev => ({ ...prev, time: '' }));
       }
+    } else {
+      setAvailableSlots([]);
+      setFormData(prev => ({ ...prev, time: '' }));
     }
-  }, [formData.date, formData.hair_artist_id, artistAvailability]);
+  }, [formData.hair_artist_id, artistAvailability]);
 
   const filteredHairArtists = hairArtists.filter(artist => {
     if (!formData.gender) return true;
@@ -121,22 +102,30 @@ function BookingForm() {
   // Reset service selection when gender changes
   useEffect(() => {
     if (formData.gender) {
-      const newFormData = { ...formData, service: '' };
-      setFormData(newFormData);
-      localStorage.setItem('bookingFormData', JSON.stringify(newFormData));
+      setFormData(prev => ({ ...prev, service: '' }));
     }
   }, [formData.gender]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const newFormData = { ...formData, [name]: value };
-    setFormData(newFormData);
-    localStorage.setItem('bookingFormData', JSON.stringify(newFormData));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleDateOptionChange = (event, newOption) => {
     if (newOption !== null) {
       setDateOption(newOption);
+      if (newOption === 'today') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const formattedDate = format(today, 'yyyy-MM-dd');
+        setFormData(prev => ({ ...prev, date: formattedDate }));
+      } else if (newOption === 'tomorrow') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const formattedDate = format(tomorrow, 'yyyy-MM-dd');
+        setFormData(prev => ({ ...prev, date: formattedDate }));
+      }
     }
   };
 
@@ -153,9 +142,7 @@ function BookingForm() {
 
   const handleGenderChange = (e, newValue) => {
     if (newValue !== null) {
-      const newFormData = { ...formData, gender: newValue, service: '' };
-      setFormData(newFormData);
-      localStorage.setItem('bookingFormData', JSON.stringify(newFormData));
+      setFormData(prev => ({ ...prev, gender: newValue, service: '' }));
     }
   };
 
@@ -164,12 +151,26 @@ function BookingForm() {
     try {
       setLoading(true);
       setError('');
+      // Store name and contact in localStorage
+      localStorage.setItem('bookingName', formData.name);
+      localStorage.setItem('bookingContact', formData.contact);
       // First send OTP
       await bookingService.sendOtp(formData);
       // Navigate to OTP verification page with form data
       navigate('/verify-otp', { state: formData });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to send OTP');
+      // Handle validation errors from FastAPI
+      if (err.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          // Handle multiple validation errors
+          setError(err.response.data.detail.map(error => error.msg).join(', '));
+        } else {
+          // Handle single error message
+          setError(err.response.data.detail);
+        }
+      } else {
+        setError('Failed to send OTP. Please try again.');
+      }
       console.error('Error sending OTP:', err);
     } finally {
       setLoading(false);
@@ -177,140 +178,138 @@ function BookingForm() {
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Book an Appointment
+    <Container maxWidth="md">
+      <Typography variant="h4" component="h1" gutterBottom>
+        Book an Appointment
+      </Typography>
+
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
         </Typography>
+      )}
 
-        {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-        )}
+      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
+        <TextField
+          fullWidth
+          label="Name"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          required
+          margin="normal"
+        />
 
-        <form onSubmit={handleSubmit}>
-          <TextField
+        <TextField
+          fullWidth
+          label="Contact (Email)"
+          name="contact"
+          type="email"
+          value={formData.contact}
+          onChange={handleChange}
+          required
+          margin="normal"
+        />
+
+        <Box sx={{ mt: 2, mb: 2 }}>
+          <ToggleButtonGroup
+            value={formData.gender}
+            exclusive
+            onChange={handleGenderChange}
             fullWidth
-            label="Name"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-            margin="normal"
-          />
-
-          <TextField
-            fullWidth
-            label="Email"
-            name="contact"
-            type="email"
-            value={formData.contact}
-            onChange={handleChange}
-            required
-            margin="normal"
-          />
-
-          <Box sx={{ mt: 2, mb: 2 }}>
-            <ToggleButtonGroup
-              value={formData.gender}
-              exclusive
-              onChange={handleGenderChange}
-              fullWidth
-            >
-              <ToggleButton value="male">Male</ToggleButton>
-              <ToggleButton value="female">Female</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-
-          <TextField
-            fullWidth
-            select
-            label="Service"
-            name="service"
-            value={formData.service}
-            onChange={handleChange}
-            required
-            margin="normal"
           >
-            {filteredServices.map((service) => (
-              <MenuItem key={service.id} value={service.name}>
-                {service.name} - ${service.price}
-              </MenuItem>
-            ))}
-          </TextField>
+            <ToggleButton value="male">Male</ToggleButton>
+            <ToggleButton value="female">Female</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
-          <Box sx={{ mt: 2, mb: 2 }}>
-            <ToggleButtonGroup
-              value={dateOption}
-              exclusive
-              onChange={handleDateOptionChange}
-              fullWidth
-            >
-              <ToggleButton value="today">Today</ToggleButton>
-              <ToggleButton value="tomorrow">Tomorrow</ToggleButton>
-              <ToggleButton value="custom">Pick Date</ToggleButton>
-            </ToggleButtonGroup>
+        <TextField
+          fullWidth
+          select
+          label="Service"
+          name="service"
+          value={formData.service}
+          onChange={handleChange}
+          required
+          margin="normal"
+        >
+          {filteredServices.map((service) => (
+            <MenuItem key={service.id} value={service.name}>
+              {service.name} - ${service.price}
+            </MenuItem>
+          ))}
+        </TextField>
 
-            {dateOption === 'custom' && (
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="Select Date"
-                  value={formData.date ? parseISO(formData.date) : null}
-                  onChange={handleCustomDateChange}
-                  minDate={new Date()}
-                  sx={{ mt: 2, width: '100%' }}
-                />
-              </LocalizationProvider>
-            )}
-          </Box>
-
-          <TextField
+        <Box sx={{ mt: 2, mb: 2 }}>
+          <ToggleButtonGroup
+            value={dateOption}
+            exclusive
+            onChange={handleDateOptionChange}
             fullWidth
-            select
-            label="Hair Artist"
-            name="hair_artist_id"
-            value={formData.hair_artist_id}
-            onChange={handleChange}
-            required
-            margin="normal"
           >
-            {filteredHairArtists.map((artist) => (
-              <MenuItem key={artist.id} value={artist.id}>
-                {artist.name}
-              </MenuItem>
-            ))}
-          </TextField>
+            <ToggleButton value="today">Today</ToggleButton>
+            <ToggleButton value="tomorrow">Tomorrow</ToggleButton>
+            <ToggleButton value="custom">Pick Date</ToggleButton>
+          </ToggleButtonGroup>
 
-          <TextField
-            fullWidth
-            select
-            label={availableSlots.length === 0 ? "No Time Slot Available" : "Time"}
-            name="time"
-            value={formData.time}
-            onChange={handleChange}
-            required={availableSlots.length === 0 ? false : true}
-            margin="normal"
-            disabled={!formData.date || !formData.hair_artist_id || availableSlots.length === 0}
-          >
-            {availableSlots.map((slot) => (
-              <MenuItem key={slot} value={slot}>
-                {slot}
-              </MenuItem>
-            ))}
-          </TextField>
+          {dateOption === 'custom' && (
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Select Date"
+                value={formData.date ? parseISO(formData.date) : null}
+                onChange={handleCustomDateChange}
+                minDate={new Date()}
+                sx={{ mt: 2, width: '100%' }}
+              />
+            </LocalizationProvider>
+          )}
+        </Box>
 
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            fullWidth
-            disabled={loading}
-            sx={{ mt: 3 }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Book Appointment'}
-          </Button>
-        </form>
+        <TextField
+          fullWidth
+          select
+          label="Hair Artist"
+          name="hair_artist_id"
+          value={formData.hair_artist_id}
+          onChange={handleChange}
+          required
+          margin="normal"
+        >
+          {filteredHairArtists.map((artist) => (
+            <MenuItem key={artist.id} value={artist.id}>
+              {artist.name}
+            </MenuItem>
+          ))}
+        </TextField>
+
+        <TextField
+          fullWidth
+          select
+          label={availableSlots.length === 0 ? "No Time Slot Available" : "Time"}
+          name="time"
+          value={formData.time}
+          onChange={handleChange}
+          required={availableSlots.length === 0 ? false : true}
+          margin="normal"
+          disabled={availableSlots.length === 0}
+        >
+          {availableSlots.map((slot) => (
+            <MenuItem key={slot} value={slot}>
+              {slot}
+            </MenuItem>
+          ))}
+        </TextField>
+
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ mt: 3 }}
+          disabled={loading}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Book Appointment'}
+        </Button>
       </Box>
     </Container>
   );

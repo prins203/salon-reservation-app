@@ -1,7 +1,3 @@
-import { bookingService } from './bookingService';
-import { hairArtistService } from './hairArtistService';
-
-export {
-  bookingService,
-  hairArtistService
-}; 
+export * from './bookingService';
+export * from './hairArtistService';
+export * from './serviceApi'; 

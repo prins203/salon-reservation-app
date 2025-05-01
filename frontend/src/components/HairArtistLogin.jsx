@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, TextField, Button, Box, Typography, CircularProgress } from '@mui/material';
-import { hairArtistService } from '../api/services';
+import { useAuth } from '../context/AuthContext';
 
 function HairArtistLogin() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -18,8 +19,7 @@ function HairArtistLogin() {
     setError('');
 
     try {
-      const response = await hairArtistService.login(formData);
-      localStorage.setItem('token', response.access_token);
+      await login(formData.email, formData.password);
       navigate('/hair-artist/dashboard');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to login');

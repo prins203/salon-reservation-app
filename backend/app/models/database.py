@@ -33,6 +33,7 @@ class Service(Base):
     description = Column(String)
     price = Column(Float)
     duration = Column(Integer)  # in minutes
+    gender_specificity = Column(String, default="both")  # "male", "female", or "both"
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -47,6 +48,7 @@ class Booking(Base):
     time = Column(Time)
     service = Column(String)
     hair_artist_id = Column(Integer, ForeignKey("hair_artists.id"))
+    gender = Column(String)  # "male" or "female"
     status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -58,6 +60,7 @@ class HairArtist(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=False)
+    gender_expertise = Column(String, default="both")  # "male", "female", or "both"
     created_at = Column(DateTime, default=func.now())
 
     def verify_password(self, password: str):

@@ -21,22 +21,6 @@ def seed_services():
             "duration": 120,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
-        },
-        {
-            "name": "Manicure",
-            "description": "Basic manicure service",
-            "price": 35.00,
-            "duration": 45,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
-        },
-        {
-            "name": "Pedicure",
-            "description": "Basic pedicure service",
-            "price": 45.00,
-            "duration": 60,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
         }
     ]
     

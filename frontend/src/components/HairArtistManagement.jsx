@@ -20,6 +20,7 @@ import {
   Container,
   AppBar,
   Toolbar,
+  MenuItem,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -35,6 +36,7 @@ const HairArtistManagement = () => {
     email: '',
     password: '',
     is_admin: false,
+    gender_expertise: 'both'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -71,6 +73,7 @@ const HairArtistManagement = () => {
         email: '',
         password: '',
         is_admin: false,
+        gender_expertise: 'both'
       });
       fetchHairArtists();
     } catch (err) {
@@ -185,6 +188,18 @@ const HairArtistManagement = () => {
               value={newArtist.password}
               onChange={(e) => setNewArtist({ ...newArtist, password: e.target.value })}
             />
+            <TextField
+              margin="dense"
+              select
+              label="Gender Expertise"
+              fullWidth
+              value={newArtist.gender_expertise}
+              onChange={(e) => setNewArtist({ ...newArtist, gender_expertise: e.target.value })}
+            >
+              <MenuItem value="male">Male</MenuItem>
+              <MenuItem value="female">Female</MenuItem>
+              <MenuItem value="both">Both</MenuItem>
+            </TextField>
             <FormControlLabel
               control={
                 <Checkbox

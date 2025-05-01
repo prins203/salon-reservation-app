@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { serviceApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import { AppBar, Toolbar, Typography, Container, Box } from '@mui/material';
 import './ServiceManagement.css';
 
 const ServiceManagement = () => {
@@ -18,6 +21,7 @@ const ServiceManagement = () => {
     gender_specificity: 'both'
   });
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (currentUser?.is_admin) {
@@ -36,8 +40,8 @@ const ServiceManagement = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
+    setFormData(prevState => ({
+      ...prevState,
       [name]: value
     }));
   };
@@ -45,11 +49,18 @@ const ServiceManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const serviceData = {
+        ...formData,
+        duration: parseInt(formData.duration),
+        price: parseFloat(formData.price)
+      };
+
       if (editingService) {
-        await serviceApi.updateService(editingService.id, formData);
+        await serviceApi.updateService(editingService.id, serviceData);
       } else {
-        await serviceApi.createService(formData);
+        await serviceApi.createService(serviceData);
       }
+      
       setFormData({
         name: '',
         description: '',
@@ -67,11 +78,11 @@ const ServiceManagement = () => {
   const handleEdit = (service) => {
     setEditingService(service);
     setFormData({
-      name: service.name,
-      description: service.description,
-      duration: service.duration,
-      price: service.price,
-      gender_specificity: service.gender_specificity
+      name: service.name || '',
+      description: service.description || '',
+      duration: service.duration?.toString() || '',
+      price: service.price?.toString() || '',
+      gender_specificity: service.gender_specificity || 'both'
     });
   };
 
@@ -91,115 +102,135 @@ const ServiceManagement = () => {
   }
 
   return (
-    <div className="service-management">
-      <h2>Manage Services</h2>
-      
-      <form onSubmit={handleSubmit} className="service-form">
-        <div className="form-group">
-          <label>Service Name</label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        
-        <div className="form-group">
-          <label>Description</label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        
-        <div className="form-group">
-          <label>Duration (minutes)</label>
-          <input
-            type="number"
-            name="duration"
-            value={formData.duration}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        
-        <div className="form-group">
-          <label>Price</label>
-          <input
-            type="number"
-            name="price"
-            value={formData.price}
-            onChange={handleInputChange}
-            step="0.01"
-            required
-          />
-        </div>
-        
-        <div className="form-group">
-          <label>Gender Specificity</label>
-          <select
-            name="gender_specificity"
-            value={formData.gender_specificity}
-            onChange={handleInputChange}
+    <Box>
+      <AppBar position="static">
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
+            onClick={() => navigate('/hair-artist/dashboard')}
+            sx={{ mr: 2 }}
           >
-            <option value="both">Both</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </div>
-        
-        <button type="submit">
-          {editingService ? 'Update Service' : 'Add Service'}
-        </button>
-      </form>
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Service Management
+          </Typography>
+        </Toolbar>
+      </AppBar>
 
-      <div className="services-list">
-        <h3>Existing Services</h3>
-        <div className="services-table">
-          <div className="table-header">
-            <div className="table-cell">Service Name</div>
-            <div className="table-cell">Description</div>
-            <div className="table-cell">Duration</div>
-            <div className="table-cell">Price</div>
-            <div className="table-cell">Gender</div>
-            <div className="table-cell actions">Actions</div>
-          </div>
-          {services.map(service => (
-            <div key={service.id} className="table-row">
-              <div className="table-cell">{service.name}</div>
-              <div className="table-cell">{service.description}</div>
-              <div className="table-cell">{service.duration} minutes</div>
-              <div className="table-cell">${service.price}</div>
-              <div className="table-cell">{service.gender_specificity}</div>
-              <div className="table-cell actions">
-                <Tooltip title="Edit Service">
-                  <IconButton 
-                    onClick={() => handleEdit(service)}
-                    className="edit-button"
-                    size="small"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Delete Service">
-                  <IconButton 
-                    onClick={() => handleDelete(service.id)}
-                    className="delete-button"
-                    size="small"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Tooltip>
-              </div>
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <div className="service-management">
+          <form onSubmit={handleSubmit} className="service-form">
+            <div className="form-group">
+              <label>Service Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                required
+              />
             </div>
-          ))}
+            
+            <div className="form-group">
+              <label>Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Duration (minutes)</label>
+              <input
+                type="number"
+                name="duration"
+                value={formData.duration}
+                onChange={handleInputChange}
+                required
+                min="1"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Price</label>
+              <input
+                type="number"
+                name="price"
+                value={formData.price}
+                onChange={handleInputChange}
+                step="0.01"
+                min="0"
+                required
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Gender Specificity</label>
+              <select
+                name="gender_specificity"
+                value={formData.gender_specificity}
+                onChange={handleInputChange}
+              >
+                <option value="both">Both</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            
+            <button type="submit">
+              {editingService ? 'Update Service' : 'Add Service'}
+            </button>
+          </form>
+
+          <div className="services-list">
+            <h3>Existing Services</h3>
+            <div className="services-table">
+              <div className="table-header">
+                <div className="table-cell">Service Name</div>
+                <div className="table-cell">Description</div>
+                <div className="table-cell">Duration</div>
+                <div className="table-cell">Price</div>
+                <div className="table-cell">Gender</div>
+                <div className="table-cell actions">Actions</div>
+              </div>
+              {services.map(service => (
+                <div key={service.id} className="table-row">
+                  <div className="table-cell">{service.name}</div>
+                  <div className="table-cell">{service.description}</div>
+                  <div className="table-cell">{service.duration} minutes</div>
+                  <div className="table-cell">${service.price}</div>
+                  <div className="table-cell">{service.gender_specificity}</div>
+                  <div className="table-cell actions">
+                    <Tooltip title="Edit Service">
+                      <IconButton 
+                        onClick={() => handleEdit(service)}
+                        className="edit-button"
+                        size="small"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete Service">
+                      <IconButton 
+                        onClick={() => handleDelete(service.id)}
+                        className="delete-button"
+                        size="small"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </Container>
+    </Box>
   );
 };
 

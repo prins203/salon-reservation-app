@@ -4,10 +4,12 @@ import { Container, Typography, Box, List, ListItem, ListItemText, CircularProgr
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { hairArtistService } from '../api/services/hairArtistService';
+import { useAuth } from '../context/AuthContext';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 function HairArtistDashboard() {
   const navigate = useNavigate();
+  const { currentUser, logout } = useAuth();
   const [selectedDate, setSelectedDate] = useState(() => {
     const savedDate = localStorage.getItem('selectedDate');
     return savedDate ? new Date(savedDate) : new Date();
@@ -15,27 +17,12 @@ function HairArtistDashboard() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    logout();
     localStorage.removeItem('selectedDate');
     navigate('/hair-artist/login');
   };
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const response = await hairArtistService.getCurrentUser();
-        setIsAdmin(response.is_admin);
-      } catch (err) {
-        console.error('Failed to fetch user data:', err);
-        handleLogout();
-      }
-    };
-
-    fetchUserData();
-  }, [handleLogout]);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -77,15 +64,25 @@ function HairArtistDashboard() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Hair Artist Dashboard
           </Typography>
-          {isAdmin && (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => navigate('/hair-artist/manage')}
-              sx={{ mr: 2 }}
-            >
-              Manage Hair Artists
-            </Button>
+          {currentUser?.is_admin && (
+            <>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => navigate('/hair-artist/manage')}
+                sx={{ mr: 2 }}
+              >
+                Manage Hair Artists
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => navigate('/hair-artist/services')}
+                sx={{ mr: 2 }}
+              >
+                Manage Services
+              </Button>
+            </>
           )}
           <IconButton color="inherit" onClick={handleLogout}>
             <LogoutIcon />

@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timedelta, date, time
-from ..models.database import get_db, Booking
+from ..models.database import get_db, Booking, Service
 from ..models.schemas import (
     BookingRequest,
     OTPRequest,
-    Service,
+    Service as ServiceSchema,
     TimeSlot,
     BookingResponse,
     BookingCreate
@@ -17,45 +17,10 @@ from ..routers.auth import get_current_hair_artist
 
 router = APIRouter(prefix="/booking")
 
-# Hardcoded services for demo
-SERVICES = [
-    Service(
-        id=1,
-        name="Haircut",
-        description="Basic haircut service",
-        duration=30,
-        price=25.00,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
-    ),
-    Service(
-        id=2,
-        name="Hair Coloring",
-        description="Full hair coloring service",
-        duration=120,
-        price=80.00,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
-    ),
-    Service(
-        id=3,
-        name="Manicure",
-        description="Basic manicure service",
-        duration=45,
-        price=35.00,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
-    ),
-    Service(
-        id=4,
-        name="Pedicure",
-        description="Basic pedicure service",
-        duration=60,
-        price=45.00,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
-    ),
-]
+@router.get("/services", response_model=List[ServiceSchema])
+async def get_services(db: Session = Depends(get_db)):
+    services = db.query(Service).all()
+    return services
 
 @router.post("/send-otp")
 async def send_otp(booking: BookingRequest, db: Session = Depends(get_db)):
@@ -114,10 +79,6 @@ async def verify_otp_endpoint(otp_request: OTPRequest, db: Session = Depends(get
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/services", response_model=List[Service])
-async def get_services():
-    return SERVICES
-
 @router.get("/available-slots")
 async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depends(get_db)):
     """Get available time slots for a given date."""
@@ -136,10 +97,13 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
             # Round up to the next 30-minute interval
             minutes_to_add = 30 - (start_time.minute % 30)
             start_time = start_time + timedelta(minutes=minutes_to_add)
+            # If current time is before 10 AM, set start time to 10 AM
+            if start_time.time() < datetime.strptime("10:00", "%H:%M").time():
+                start_time = datetime.combine(booking_date, datetime.strptime("10:00", "%H:%M").time())
         else:
-            start_time = datetime.strptime("09:00", "%H:%M")
+            start_time = datetime.combine(booking_date, datetime.strptime("10:00", "%H:%M").time())
         
-        end_time = datetime.strptime("22:00", "%H:%M")  # Changed from 18:00 to 22:00
+        end_time = datetime.combine(booking_date, datetime.strptime("22:00", "%H:%M").time())
         
         # Get all bookings for the date
         bookings = db.query(Booking).filter(
@@ -159,7 +123,9 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
         current_slot = start_time
         
         while current_slot.time() < end_time.time():
-            all_slots.add(current_slot.strftime("%H:%M"))
+            # Only add slots that are in the future
+            if booking_date > current_time.date() or (booking_date == current_time.date() and current_slot.time() > current_time.time()):
+                all_slots.add(current_slot.strftime("%H:%M"))
             current_slot = current_slot + timedelta(minutes=30)
         
         # Get available slots by subtracting booked slots

@@ -9,6 +9,7 @@ class BookingRequest(BaseModel):
     date: str
     time: str
     hair_artist_id: int
+    gender: str  # "male" or "female"
 
 class OTPRequest(BaseModel):
     contact: str
@@ -18,12 +19,14 @@ class OTPRequest(BaseModel):
     date: str
     time: str
     hair_artist_id: int
+    gender: str  # "male" or "female"
 
 class ServiceBase(BaseModel):
     name: str
     description: str
     duration: int  # in minutes
     price: float
+    gender_specificity: str = "both"  # "male", "female", or "both"
 
 class ServiceCreate(ServiceBase):
     pass
@@ -63,6 +66,7 @@ class BookingCreate(BaseModel):
     time: str
     service: str
     hair_artist_id: int
+    gender: str  # "male" or "female"
 
 class Booking(BaseModel):
     id: int
@@ -90,6 +94,7 @@ class HairArtist(BaseModel):
     name: str
     email: EmailStr
     is_admin: bool = False
+    gender_expertise: str = "both"
     created_at: datetime
 
     class Config:
@@ -100,6 +105,7 @@ class HairArtistCreate(BaseModel):
     email: EmailStr
     password: str
     is_admin: bool = False
+    gender_expertise: str = "both"
 
 class HairArtistLogin(BaseModel):
     email: EmailStr

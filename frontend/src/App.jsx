@@ -9,6 +9,8 @@ import Confirmation from './components/Confirmation';
 import HairArtistLogin from './components/HairArtistLogin';
 import HairArtistDashboard from './components/HairArtistDashboard';
 import HairArtistManagement from './components/HairArtistManagement';
+import ServiceManagement from './components/ServiceManagement';
+import { AuthProvider } from './context/AuthContext';
 
 const theme = createTheme({
   palette: {
@@ -24,7 +26,6 @@ const theme = createTheme({
 function Header() {
   const location = useLocation();
   const isLoginPage = location.pathname === '/hair-artist/login';
-  const isHairArtistPage = location.pathname.startsWith('/hair-artist/') && !isLoginPage;
   const isHomePage = location.pathname === '/';
 
   return (
@@ -63,19 +64,22 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Container maxWidth="md">
-          <Header />
-          <Routes>
-            <Route path="/" element={<BookingForm />} />
-            <Route path="/verify-otp" element={<VerifyOtp />} />
-            <Route path="/confirmation" element={<Confirmation />} />
-            <Route path="/hair-artist/login" element={<HairArtistLogin />} />
-            <Route path="/hair-artist/dashboard" element={<HairArtistDashboard />} />
-            <Route path="/hair-artist/manage" element={<HairArtistManagement />} />
-          </Routes>
-        </Container>
-      </Router>
+      <AuthProvider>
+        <Router>
+          <Container maxWidth="md">
+            <Header />
+            <Routes>
+              <Route path="/" element={<BookingForm />} />
+              <Route path="/verify-otp" element={<VerifyOtp />} />
+              <Route path="/confirmation" element={<Confirmation />} />
+              <Route path="/hair-artist/login" element={<HairArtistLogin />} />
+              <Route path="/hair-artist/dashboard" element={<HairArtistDashboard />} />
+              <Route path="/hair-artist/manage" element={<HairArtistManagement />} />
+              <Route path="/hair-artist/services" element={<ServiceManagement />} />
+            </Routes>
+          </Container>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
