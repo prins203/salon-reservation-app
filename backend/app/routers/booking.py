@@ -40,11 +40,37 @@ async def verify_otp_endpoint(otp_request: OTPRequest, db: Session = Depends(get
         if not verify_otp(db, otp_request.contact, otp_request.code):
             raise HTTPException(status_code=400, detail="Invalid or expired OTP")
         
-        # Convert date string to Python date object
-        booking_date = datetime.strptime(otp_request.date, "%Y-%m-%d").date()
+        # Validate that all required fields are present and not empty
+        required_fields = {
+            'date': otp_request.date,
+            'time': otp_request.time,
+            'name': otp_request.name,
+            'service': otp_request.service,
+            'hair_artist_id': otp_request.hair_artist_id
+        }
         
-        # Convert time string to Python time object
-        booking_time = datetime.strptime(otp_request.time, "%H:%M").time()
+        missing_fields = [field for field, value in required_fields.items() 
+                         if not value and field not in ['hair_artist_id'] or 
+                         (field == 'hair_artist_id' and not str(value))]
+        
+        if missing_fields:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Missing required fields: {', '.join(missing_fields)}"
+            )
+            
+        # Safety checks for date and time format
+        try:
+            # Convert date string to Python date object
+            booking_date = datetime.strptime(otp_request.date, "%Y-%m-%d").date()
+            
+            # Convert time string to Python time object
+            booking_time = datetime.strptime(otp_request.time, "%H:%M").time()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date or time format: {str(e)}. Use YYYY-MM-DD for date and HH:MM for time."
+            )
         
         # Check if the slot is still available
         print(f"Checking slot availability for date: {booking_date}, time: {booking_time}, hair_artist_id: {otp_request.hair_artist_id}")
@@ -74,10 +100,18 @@ async def verify_otp_endpoint(otp_request: OTPRequest, db: Session = Depends(get
         db.refresh(booking)
         
         return {"message": "OTP verified successfully", "booking_id": booking.id}
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions directly
+        db.rollback()
+        raise http_exc
     except Exception as e:
         print(f"Error in verify-otp: {str(e)}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return a more user-friendly error message
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error processing your OTP verification. Please ensure all fields are filled correctly."
+        )
 
 @router.get("/available-slots")
 async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depends(get_db)):

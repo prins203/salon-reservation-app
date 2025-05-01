@@ -1,10 +1,10 @@
 import apiClient from '../apiClient';
 
 export const hairArtistService = {
-  login: async (credentials) => {
+  login: async (email, password) => {
     const formData = new URLSearchParams();
-    formData.append('username', credentials.email);
-    formData.append('password', credentials.password);
+    formData.append('username', email);
+    formData.append('password', password);
 
     const response = await apiClient.post('/token', formData, {
       headers: {

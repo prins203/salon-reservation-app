@@ -1,16 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, TextField, Button, Box, Typography, CircularProgress } from '@mui/material';
 import { bookingService } from '../api/services';
+import { format } from 'date-fns';
 
 function VerifyOtp() {
   const navigate = useNavigate();
   const location = useLocation();
-  const bookingData = location.state;
+  const [bookingData, setBookingData] = useState(location.state || {});
   
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Ensure booking data has default values for required fields
+  useEffect(() => {
+    // If no booking data or missing date, set defaults
+    if (!bookingData || !bookingData.date) {
+      setBookingData(prevData => {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        return {
+          ...prevData,
+          date: today,
+          // Set other defaults if needed
+          time: prevData.time || '',
+          name: prevData.name || '',
+          service: prevData.service || '',
+          gender: prevData.gender || 'male',
+          hair_artist_id: prevData.hair_artist_id || 1
+        };
+      });
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,14 +39,17 @@ function VerifyOtp() {
     setError('');
     
     try {
+      // Get today's date as a fallback
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
       // Send all booking data along with the OTP
       const otpData = {
         contact: bookingData.contact,
         code: otp,
         name: bookingData.name,
         service: bookingData.service,
-        date: bookingData.date,
-        time: bookingData.time,
+        date: bookingData.date || today, // Use today as fallback
+        time: bookingData.time || '10:00', // Use default time as fallback
         hair_artist_id: bookingData.hair_artist_id,
         gender: bookingData.gender
       };
