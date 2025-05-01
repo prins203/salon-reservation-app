@@ -436,7 +436,7 @@ function HairArtistDashboard() {
                 datesSet={handleDatesSet}
                 height="100%"
                 slotMinTime="08:00:00"
-                slotMaxTime="22:00:00"
+                slotMaxTime="22:30:00"
                 allDaySlot={false}
                 nowIndicator={true}
                 scrollTime={new Date().toISOString().substring(11, 16)}
