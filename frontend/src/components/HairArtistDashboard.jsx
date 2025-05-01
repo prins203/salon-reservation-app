@@ -440,6 +440,9 @@ function HairArtistDashboard() {
                 allDaySlot={false}
                 nowIndicator={true}
                 scrollTime={new Date().toISOString().substring(11, 16)}
+                slotDuration={'00:30:00'}
+                slotLabelInterval={'01:00'}
+                snapDuration={'00:30:00'}
                 businessHours={{
                   daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Sunday - Saturday
                   startTime: '10:00',
