@@ -16,9 +16,13 @@ export const bookingService = {
     return response.data;
   },
 
-  getAvailableSlots: async (date, hairArtistId) => {
+  getAvailableSlots: async (date, hairArtistId, serviceId = null) => {
+    const params = { date, hair_artist_id: hairArtistId };
+    if (serviceId) {
+      params.service_id = serviceId;
+    }
     const response = await apiClient.get('/booking/available-slots', {
-      params: { date, hair_artist_id: hairArtistId }
+      params
     });
     return response.data;
   },

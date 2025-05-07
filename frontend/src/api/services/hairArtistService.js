@@ -47,5 +47,10 @@ export const hairArtistService = {
   getCurrentUser: async () => {
     const response = await apiClient.get('/hair-artists/me');
     return response.data;
+  },
+  
+  getServices: async () => {
+    const response = await apiClient.get('/services/');
+    return response.data;
   }
 }; 

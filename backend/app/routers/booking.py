@@ -114,8 +114,13 @@ async def verify_otp_endpoint(otp_request: OTPRequest, db: Session = Depends(get
         )
 
 @router.get("/available-slots")
-async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depends(get_db)):
-    """Get available time slots for a given date."""
+async def get_available_slots(
+    date: str, 
+    hair_artist_id: int, 
+    service_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Get available time slots for a given date, considering service duration if provided."""
     try:
         # Parse the input date
         booking_date = datetime.strptime(date, "%Y-%m-%d").date()
@@ -124,6 +129,13 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
         # Check if the date is a Tuesday
         if booking_date.weekday() == 1:  # 1 is Tuesday
             return []
+        
+        # Get service duration if service_id is provided
+        service_duration = 30  # Default to 30 minutes
+        if service_id:
+            service = db.query(Service).filter(Service.id == service_id).first()
+            if service:
+                service_duration = service.duration
         
         # If the date is today, only show slots from current time onwards
         if booking_date == current_time.date():
@@ -146,26 +158,48 @@ async def get_available_slots(date: str, hair_artist_id: int, db: Session = Depe
             Booking.status == "confirmed"
         ).all()
         
-        # Convert bookings to time slots
-        booked_slots = {
-            booking.time.strftime("%H:%M")
-            for booking in bookings
-        }
+        # Get service info for each booking to determine their duration
+        booked_time_ranges = []
+        for booking in bookings:
+            booking_service_name = booking.service
+            booking_service = db.query(Service).filter(Service.name == booking_service_name).first()
+            
+            booking_duration = 30  # Default duration if service not found
+            if booking_service:
+                booking_duration = booking_service.duration
+            
+            booking_start = datetime.combine(booking.date, booking.time)
+            booking_end = booking_start + timedelta(minutes=booking_duration)
+            
+            booked_time_ranges.append((booking_start, booking_end))
         
         # Generate all possible 30-minute slots for the day
-        all_slots = set()
+        all_slots = []
         current_slot = start_time
         
         while current_slot.time() < end_time.time():
             # Only add slots that are in the future
             if booking_date > current_time.date() or (booking_date == current_time.date() and current_slot.time() > current_time.time()):
-                all_slots.add(current_slot.strftime("%H:%M"))
+                # Check if this slot works with the service duration
+                slot_end_time = current_slot + timedelta(minutes=service_duration)
+                
+                # Check if slot ends before closing time
+                if slot_end_time.time() <= end_time.time():
+                    # Check if slot conflicts with any booking
+                    is_available = True
+                    for booked_start, booked_end in booked_time_ranges:
+                        # Check for overlap with existing bookings
+                        if (current_slot < booked_end and slot_end_time > booked_start):
+                            is_available = False
+                            break
+                    
+                    if is_available:
+                        all_slots.append(current_slot.strftime("%H:%M"))
+            
+            # Move to next 30-minute slot
             current_slot = current_slot + timedelta(minutes=30)
         
-        # Get available slots by subtracting booked slots
-        available_slots = sorted(list(all_slots - booked_slots))
-        
-        return available_slots
+        return sorted(all_slots)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

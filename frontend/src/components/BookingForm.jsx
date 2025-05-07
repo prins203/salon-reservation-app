@@ -13,6 +13,7 @@ function BookingForm() {
     name: localStorage.getItem('bookingName') || '',
     contact: localStorage.getItem('bookingContact') || '',
     service: '',
+    serviceId: null,
     date: '',
     time: '',
     hair_artist_id: '',
@@ -47,7 +48,7 @@ function BookingForm() {
     try {
       const availability = {};
       for (const artist of artists) {
-        const slots = await bookingService.getAvailableSlots(date, artist.id);
+        const slots = await bookingService.getAvailableSlots(date, artist.id, formData.serviceId);
         availability[artist.id] = {
           allSlots: slots,
           availableSlots: slots // The backend already returns only available slots
@@ -57,19 +58,19 @@ function BookingForm() {
     } catch (err) {
       console.error('Error fetching artist availability:', err);
     }
-  }, []);
+  }, [formData.serviceId]);
 
-  // Fetch availability whenever date or hair artists change
+  // Fetch availability whenever date, service, or hair artists change
   useEffect(() => {
     if (hairArtists.length > 0) {
       const dateToUse = formData.date || (dateOption === 'today' ? format(new Date(), 'yyyy-MM-dd') : 
-                        dateOption === 'tomorrow' ? format(addDays(new Date(), 1), 'yyyy-MM-dd') : '');
+                      dateOption === 'tomorrow' ? format(addDays(new Date(), 1), 'yyyy-MM-dd') : '');
       
       if (dateToUse) {
         fetchArtistAvailability(hairArtists, dateToUse);
       }
     }
-  }, [formData.date, hairArtists, dateOption, fetchArtistAvailability]);
+  }, [formData.date, formData.serviceId, hairArtists, dateOption, fetchArtistAvailability]);
 
   // Update available slots whenever date, hair artist, or availability changes
   useEffect(() => {
@@ -102,13 +103,27 @@ function BookingForm() {
   // Reset service selection when gender changes
   useEffect(() => {
     if (formData.gender) {
-      setFormData(prev => ({ ...prev, service: '' }));
+      setFormData(prev => ({ ...prev, service: '', serviceId: null }));
     }
   }, [formData.gender]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Special handling for service selection to store both name and ID
+    if (name === 'service') {
+      const selectedService = services.find(service => service.name === value);
+      setFormData(prev => ({ 
+        ...prev, 
+        [name]: value,
+        serviceId: selectedService ? selectedService.id : null 
+      }));
+      
+      // When service changes, reset time selection
+      setFormData(prev => ({ ...prev, time: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleDateOptionChange = (event, newOption) => {
@@ -142,7 +157,7 @@ function BookingForm() {
 
   const handleGenderChange = (e, newValue) => {
     if (newValue !== null) {
-      setFormData(prev => ({ ...prev, gender: newValue, service: '' }));
+      setFormData(prev => ({ ...prev, gender: newValue, service: '', serviceId: null }));
     }
   };
 
@@ -154,10 +169,22 @@ function BookingForm() {
       // Store name and contact in localStorage
       localStorage.setItem('bookingName', formData.name);
       localStorage.setItem('bookingContact', formData.contact);
+      
+      // Create the submission data (excluding serviceId which is only used internally)
+      const submissionData = {
+        name: formData.name,
+        contact: formData.contact,
+        service: formData.service,
+        date: formData.date,
+        time: formData.time,
+        hair_artist_id: formData.hair_artist_id,
+        gender: formData.gender
+      };
+      
       // First send OTP
-      await bookingService.sendOtp(formData);
+      await bookingService.sendOtp(submissionData);
       // Navigate to OTP verification page with form data
-      navigate('/verify-otp', { state: formData });
+      navigate('/verify-otp', { state: submissionData });
     } catch (err) {
       // Handle validation errors from FastAPI
       if (err.response?.data?.detail) {

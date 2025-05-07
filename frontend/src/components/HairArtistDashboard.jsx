@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container, Typography, Box, CircularProgress, Button, AppBar, Toolbar, IconButton,
@@ -36,6 +36,7 @@ function HairArtistDashboard() {
   const [cachedAppointments, setCachedAppointments] = useState({});
   const [cachedDateRanges, setCachedDateRanges] = useState([]);
   const [lastFetchTime, setLastFetchTime] = useState(null);
+  const [cachedServices, setCachedServices] = useState(null);
 
   const handleLogout = () => {
     logout();
@@ -168,6 +169,47 @@ function HairArtistDashboard() {
     });
   };
 
+  // Fetch all services to get their durations
+  const fetchServices = async () => {
+    try {
+      const services = await hairArtistService.getServices();
+      // Create a lookup map for easier access
+      const servicesMap = {};
+      services.forEach(service => {
+        servicesMap[service.name] = service;
+      });
+      
+      console.log('Cached services with durations:', servicesMap);
+      setCachedServices(servicesMap);
+      
+      // When services are loaded, refresh the calendar to apply durations
+      if (calendarRef.current) {
+        const calendarApi = calendarRef.current.getApi();
+        const currentViewDates = {
+          start: calendarApi.view.currentStart,
+          end: calendarApi.view.currentEnd
+        };
+        fetchBookings(currentViewDates, true);
+      }
+    } catch (err) {
+      console.error('Error fetching services:', err);
+    }
+  };
+
+  // Fetch services on component mount
+  useEffect(() => {
+    // Always fetch services first
+    fetchServices();
+    
+    // Poll for service durations every 30 seconds in case they change
+    const intervalId = setInterval(() => {
+      console.log('Refreshing service durations...');
+      fetchServices();
+    }, 30000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
+
   const fetchBookings = async (dateInfo, forceRefresh = false) => {
     // If this is a force refresh, clear the cache for this range
     if (forceRefresh) {
@@ -185,7 +227,7 @@ function HairArtistDashboard() {
           id: booking.id,
           title: `${booking.name} - ${booking.service}`,
           start: `${booking.date}T${booking.time}`,
-          end: calculateEndTime(booking.date, booking.time),
+          end: calculateEndTime(booking.date, booking.time, booking.service),
           extendedProps: {
             ...booking
           }
@@ -243,7 +285,7 @@ function HairArtistDashboard() {
           id: booking.id,
           title: `${booking.name} - ${booking.service}`,
           start: `${booking.date}T${booking.time}`,
-          end: calculateEndTime(booking.date, booking.time),
+          end: calculateEndTime(booking.date, booking.time, booking.service),
           extendedProps: {
             ...booking
           }
@@ -290,12 +332,42 @@ function HairArtistDashboard() {
     }
   };
 
-  // Calculate end time (assuming 1 hour appointments for now)
-  const calculateEndTime = (date, time) => {
+  // Calculate end time based on service duration
+  const calculateEndTime = (date, time, service) => {
+    if (!date || !time || !service) {
+      console.error('Missing required parameters:', { date, time, service });
+      return new Date(new Date(`${date || '2025-01-01'}T${time || '00:00'}`).getTime() + 30 * 60000).toISOString();
+    }
+    
     const startDateTime = new Date(`${date}T${time}`);
-    // Default to 1 hour appointments
-    startDateTime.setHours(startDateTime.getHours() + 1);
-    return startDateTime.toISOString();
+    
+    // Fetch service duration for the specific service
+    const getServiceDuration = (serviceName) => {
+      // Default to 30 minutes if service not found
+      let duration = 30;
+      
+      if (cachedServices && cachedServices[serviceName]) {
+        duration = cachedServices[serviceName].duration;
+        console.log(`Found service '${serviceName}' with duration: ${duration} minutes`);
+      } else {
+        console.warn(`⚠️ Service '${serviceName}' not found in cached services. Using default duration: ${duration} minutes`);
+        console.log('Available services:', Object.keys(cachedServices || {}));
+      }
+      
+      return duration;
+    };
+    
+    // Get the appropriate duration based on the service
+    const duration = getServiceDuration(service);
+    
+    // Create a new date object for the end time
+    const endDateTime = new Date(startDateTime.getTime());
+    endDateTime.setMinutes(endDateTime.getMinutes() + duration);
+    
+    // Log the calculated duration
+    console.log(`Appointment for '${service}': ${time} - ${endDateTime.toTimeString().slice(0, 5)}, Duration: ${duration} minutes`);
+    
+    return endDateTime.toISOString();
   };
 
   const handleViewChange = (event, newView) => {
@@ -321,7 +393,13 @@ function HairArtistDashboard() {
   };
 
   const handleDatesSet = (dateInfo) => {
-    fetchBookings(dateInfo);
+    // Only fetch bookings if services are available
+    if (cachedServices) {
+      fetchBookings(dateInfo);
+    } else {
+      // Services not loaded yet, will be fetched when services become available
+      console.log('Waiting for services to load before fetching bookings...');
+    }
   };
   
   const handleRefresh = () => {
@@ -440,9 +518,9 @@ function HairArtistDashboard() {
                 allDaySlot={false}
                 nowIndicator={true}
                 scrollTime={new Date().toISOString().substring(11, 16)}
-                slotDuration={'00:30:00'}
-                slotLabelInterval={'01:00'}
-                snapDuration={'00:30:00'}
+                slotDuration="00:15:00"
+                slotLabelInterval="01:00"
+                snapDuration="00:15:00"
                 businessHours={{
                   daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Sunday - Saturday
                   startTime: '08:00',
