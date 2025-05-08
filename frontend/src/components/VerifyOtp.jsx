@@ -31,7 +31,7 @@ function VerifyOtp() {
         };
       });
     }
-  }, []);
+  }, [bookingData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

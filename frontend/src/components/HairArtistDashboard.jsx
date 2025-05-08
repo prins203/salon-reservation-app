@@ -1,383 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Container, Typography, Box, CircularProgress, Button, AppBar, Toolbar, IconButton,
-  ToggleButton, ToggleButtonGroup, Paper, Dialog, DialogTitle, DialogContent, DialogActions,
-  Tooltip
+  Container, Box
 } from '@mui/material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { hairArtistService } from '../api/services/hairArtistService';
-import { useAuth } from '../context/AuthContext';
-import LogoutIcon from '@mui/icons-material/Logout';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import { format, parseISO } from 'date-fns';
+
+// Redux and Custom Hooks
+import useAuth from '../hooks/useAuth';
+import useBookings from '../hooks/useBookings';
+
+// Components
+import CalendarView from './dashboard/CalendarView';
+import AppointmentDetailsDialog from './dashboard/AppointmentDetailsDialog';
+import DashboardHeader from './dashboard/DashboardHeader';
+
+// Utils
+import { bookingsToEvents } from '../utils/appointmentUtils';
+import { format } from 'date-fns';
 
 function HairArtistDashboard() {
   const navigate = useNavigate();
-  const { currentUser, logout } = useAuth();
   
-  // State for calendar and UI
-  const [calendarView, setCalendarView] = useState('timeGridWeek'); // Default to weekly view
+  // Use custom hooks
+  const { currentUser, logout } = useAuth();
+  const { bookings, services, loading, getBookings, getServices } = useBookings();
+  
+  // Local state for UI
+  const [calendarView, setCalendarView] = useState('timeGridWeek');
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEventDialog, setShowEventDialog] = useState(false);
-  
-  // Refs
-  const calendarRef = React.useRef(null);
-  
-  // Cache state - using an object to store appointments by date
-  const [cachedAppointments, setCachedAppointments] = useState({});
-  const [cachedDateRanges, setCachedDateRanges] = useState([]);
-  const [lastFetchTime, setLastFetchTime] = useState(null);
-  const [cachedServices, setCachedServices] = useState(null);
 
+  // Handlers
   const handleLogout = () => {
     logout();
     navigate('/hair-artist/login');
   };
 
-  // Check if a date is within any of our cached ranges
-  const isDateRangeCached = (start, end) => {
-    // If there are no cached ranges, nothing is cached
-    if (cachedDateRanges.length === 0) return false;
-    
-    // Convert dates to timestamps for easier comparison
-    const startTime = start.getTime();
-    const endTime = end.getTime();
-    
-    // Check if the entire date range is contained within any of our cached ranges
-    for (const range of cachedDateRanges) {
-      const cachedStartTime = range.start.getTime();
-      const cachedEndTime = range.end.getTime();
-      
-      if (startTime >= cachedStartTime && endTime <= cachedEndTime) {
-        return true;
-      }
-    }
-    
-    return false;
-  };
-  
-  // Get the portion of a date range that needs to be fetched
-  const getUncachedSubRanges = (start, end) => {
-    if (cachedDateRanges.length === 0) {
-      // If nothing is cached, we need the entire range
-      return [{ start, end }];
-    }
-    
-    // If the entire range is already cached, return empty array
-    if (isDateRangeCached(start, end)) {
-      return [];
-    }
-    
-    // Sort cached ranges by start date
-    const sortedRanges = [...cachedDateRanges].sort((a, b) => 
-      a.start.getTime() - b.start.getTime()
-    );
-    
-    // Find gaps in our cached ranges that overlap with the requested range
-    const subRanges = [];
-    let currentStart = new Date(start);
-    
-    // Check if we need to fetch anything before the first cached range
-    if (currentStart < sortedRanges[0].start && end > sortedRanges[0].start) {
-      subRanges.push({
-        start: currentStart,
-        end: new Date(Math.min(end.getTime(), sortedRanges[0].start.getTime()))
-      });
-      currentStart = new Date(sortedRanges[0].end);
-    }
-    
-    // Check for gaps between cached ranges
-    for (let i = 0; i < sortedRanges.length - 1; i++) {
-      const gapStart = new Date(Math.max(currentStart.getTime(), sortedRanges[i].end.getTime()));
-      const gapEnd = new Date(Math.min(end.getTime(), sortedRanges[i+1].start.getTime()));
-      
-      if (gapStart < gapEnd) {
-        subRanges.push({ start: gapStart, end: gapEnd });
-      }
-      
-      currentStart = new Date(Math.max(currentStart.getTime(), sortedRanges[i+1].end.getTime()));
-    }
-    
-    // Check if we need to fetch anything after the last cached range
-    const lastRange = sortedRanges[sortedRanges.length - 1];
-    if (currentStart < end && lastRange.end < end) {
-      subRanges.push({
-        start: new Date(Math.max(currentStart.getTime(), lastRange.end.getTime())),
-        end: new Date(end)
-      });
-    }
-    
-    return subRanges;
-  };
-
-  // Merge a new range into our cached ranges
-  const addRangeToCache = (newRange) => {
-    // Convert to array of date strings for consistent handling
-    const startStr = format(newRange.start, 'yyyy-MM-dd');
-    const endStr = format(newRange.end, 'yyyy-MM-dd');
-    
-    setCachedDateRanges(prevRanges => {
-      // Clone the ranges to avoid mutation
-      const ranges = [...prevRanges];
-      
-      // Find overlapping or adjacent ranges to merge
-      let merged = false;
-      for (let i = 0; i < ranges.length; i++) {
-        const range = ranges[i];
-        const rangeStartStr = format(range.start, 'yyyy-MM-dd');
-        const rangeEndStr = format(range.end, 'yyyy-MM-dd');
-        
-        // Check if ranges overlap or are adjacent
-        const overlaps = (
-          (startStr <= rangeEndStr && endStr >= rangeStartStr) ||
-          (new Date(startStr) <= new Date(rangeEndStr.getTime() + 86400000) && 
-           new Date(endStr) >= new Date(rangeStartStr.getTime() - 86400000))
-        );
-        
-        if (overlaps) {
-          // Merge the ranges
-          const mergedStart = new Date(Math.min(
-            range.start.getTime(),
-            newRange.start.getTime()
-          ));
-          const mergedEnd = new Date(Math.max(
-            range.end.getTime(),
-            newRange.end.getTime()
-          ));
-          
-          ranges[i] = { start: mergedStart, end: mergedEnd };
-          merged = true;
-          break;
-        }
-      }
-      
-      // If no overlap was found, add as a new range
-      if (!merged) {
-        ranges.push(newRange);
-      }
-      
-      return ranges;
-    });
-  };
-
-  // Fetch all services to get their durations
-  const fetchServices = async () => {
-    try {
-      const services = await hairArtistService.getServices();
-      // Create a lookup map for easier access
-      const servicesMap = {};
-      services.forEach(service => {
-        servicesMap[service.name] = service;
-      });
-      
-      console.log('Cached services with durations:', servicesMap);
-      setCachedServices(servicesMap);
-      
-      // When services are loaded, refresh the calendar to apply durations
-      if (calendarRef.current) {
-        const calendarApi = calendarRef.current.getApi();
-        const currentViewDates = {
-          start: calendarApi.view.currentStart,
-          end: calendarApi.view.currentEnd
-        };
-        fetchBookings(currentViewDates, true);
-      }
-    } catch (err) {
-      console.error('Error fetching services:', err);
-    }
-  };
-
-  // Fetch services on component mount
-  useEffect(() => {
-    // Always fetch services first
-    fetchServices();
-    
-    // Poll for service durations every 30 seconds in case they change
-    const intervalId = setInterval(() => {
-      console.log('Refreshing service durations...');
-      fetchServices();
-    }, 30000);
-    
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const fetchBookings = async (dateInfo, forceRefresh = false) => {
-    // If this is a force refresh, clear the cache for this range
-    if (forceRefresh) {
-      setLoading(true);
-      const startDate = format(dateInfo.start, 'yyyy-MM-dd');
-      const endDate = format(dateInfo.end, 'yyyy-MM-dd');
-      const todayDate = format(new Date(), 'yyyy-MM-dd');
-      
-      try {
-        console.log(`Force refreshing bookings from ${startDate} to ${endDate}`);
-        const bookings = await hairArtistService.getBookings(todayDate, startDate, endDate);
-        
-        // Transform and update events
-        const calendarEvents = bookings.map(booking => ({
-          id: booking.id,
-          title: `${booking.name} - ${booking.service}`,
-          start: `${booking.date}T${booking.time}`,
-          end: calculateEndTime(booking.date, booking.time, booking.service),
-          extendedProps: {
-            ...booking
-          }
-        }));
-        
-        setEvents(calendarEvents);
-        setLastFetchTime(new Date());
-      } catch (err) {
-        console.error('Error refreshing bookings:', err);
-        setError(err.response?.data?.detail || 'Failed to refresh bookings');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-    
-    // Get the portions of the date range that aren't cached yet
-    const uncachedRanges = getUncachedSubRanges(dateInfo.start, dateInfo.end);
-    
-    if (uncachedRanges.length === 0) {
-      console.log('Using cached data - all dates already in cache');
-      
-      // Collect all events from the cache that fall within the requested range
-      const startTime = dateInfo.start.getTime();
-      const endTime = dateInfo.end.getTime();
-      
-      // Filter events from the cached appointments to show only those in the current range
-      const filteredEvents = Object.values(cachedAppointments).flat().filter(event => {
-        const eventTime = new Date(event.start).getTime();
-        return eventTime >= startTime && eventTime <= endTime;
-      });
-      
-      setEvents(filteredEvents);
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      let allBookingEvents = [];
-      
-      // Fetch each uncached sub-range
-      for (const range of uncachedRanges) {
-        const startDate = format(range.start, 'yyyy-MM-dd');
-        const endDate = format(range.end, 'yyyy-MM-dd');
-        const todayDate = format(new Date(), 'yyyy-MM-dd'); // For backward compatibility
-        
-        console.log(`Fetching uncached range: ${startDate} to ${endDate}`);
-        
-        const bookings = await hairArtistService.getBookings(todayDate, startDate, endDate);
-        
-        // Transform bookings into calendar events
-        const rangeEvents = bookings.map(booking => ({
-          id: booking.id,
-          title: `${booking.name} - ${booking.service}`,
-          start: `${booking.date}T${booking.time}`,
-          end: calculateEndTime(booking.date, booking.time, booking.service),
-          extendedProps: {
-            ...booking
-          }
-        }));
-        
-        // Add to our running list
-        allBookingEvents = [...allBookingEvents, ...rangeEvents];
-        
-        // Cache this range and its bookings
-        addRangeToCache(range);
-        
-        // Cache the appointments by date for quick lookup
-        setCachedAppointments(prev => {
-          const updated = {...prev};
-          rangeEvents.forEach(event => {
-            const dateKey = event.start.split('T')[0]; // Extract the date part
-            if (!updated[dateKey]) updated[dateKey] = [];
-            updated[dateKey].push(event);
-          });
-          return updated;
-        });
-      }
-      
-      // Combine newly fetched events with already cached events in the current range
-      const startTime = dateInfo.start.getTime();
-      const endTime = dateInfo.end.getTime();
-      
-      const cachedEvents = Object.values(cachedAppointments).flat().filter(event => {
-        const eventTime = new Date(event.start).getTime();
-        return eventTime >= startTime && eventTime <= endTime;
-      });
-      
-      // Combine and deduplicate events (by ID)
-      const combinedEvents = [...cachedEvents, ...allBookingEvents];
-      const uniqueEvents = Array.from(new Map(combinedEvents.map(event => [event.id, event])).values());
-      
-      setEvents(uniqueEvents);
-      setLastFetchTime(new Date());
-    } catch (err) {
-      console.error('Error fetching bookings:', err);
-      setError(err.response?.data?.detail || 'Failed to fetch bookings');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate end time based on service duration
-  const calculateEndTime = (date, time, service) => {
-    if (!date || !time || !service) {
-      console.error('Missing required parameters:', { date, time, service });
-      return new Date(new Date(`${date || '2025-01-01'}T${time || '00:00'}`).getTime() + 30 * 60000).toISOString();
-    }
-    
-    const startDateTime = new Date(`${date}T${time}`);
-    
-    // Fetch service duration for the specific service
-    const getServiceDuration = (serviceName) => {
-      // Default to 30 minutes if service not found
-      let duration = 30;
-      
-      if (cachedServices && cachedServices[serviceName]) {
-        duration = cachedServices[serviceName].duration;
-        console.log(`Found service '${serviceName}' with duration: ${duration} minutes`);
-      } else {
-        console.warn(`⚠️ Service '${serviceName}' not found in cached services. Using default duration: ${duration} minutes`);
-        console.log('Available services:', Object.keys(cachedServices || {}));
-      }
-      
-      return duration;
-    };
-    
-    // Get the appropriate duration based on the service
-    const duration = getServiceDuration(service);
-    
-    // Create a new date object for the end time
-    const endDateTime = new Date(startDateTime.getTime());
-    endDateTime.setMinutes(endDateTime.getMinutes() + duration);
-    
-    // Log the calculated duration
-    console.log(`Appointment for '${service}': ${time} - ${endDateTime.toTimeString().slice(0, 5)}, Duration: ${duration} minutes`);
-    
-    return endDateTime.toISOString();
-  };
-
   const handleViewChange = (event, newView) => {
-    if (newView !== null) {
-      // Directly update the calendar API instance to change the view immediately
-      if (calendarRef.current) {
-        const calendarApi = calendarRef.current.getApi();
-        calendarApi.changeView(newView);
-      }
-      // Also update state to keep it in sync
+    if (newView) {
       setCalendarView(newView);
     }
   };
@@ -392,187 +52,144 @@ function HairArtistDashboard() {
     setSelectedEvent(null);
   };
 
-  const handleDatesSet = (dateInfo) => {
-    // Only fetch bookings if services are available
-    if (cachedServices) {
-      fetchBookings(dateInfo);
-    } else {
-      // Services not loaded yet, will be fetched when services become available
-      console.log('Waiting for services to load before fetching bookings...');
-    }
-  };
+  // Store the last fetched date range to prevent redundant fetches
+  const lastFetchedRange = React.useRef({ startDate: null, endDate: null });
   
-  const handleRefresh = () => {
-    // Force a refresh of the current view's data
-    if (calendarRef.current) {
-      const calendarApi = calendarRef.current.getApi();
-      const currentViewDates = {
-        start: calendarApi.view.currentStart,
-        end: calendarApi.view.currentEnd
-      };
-      fetchBookings(currentViewDates, true);
+  const handleDatesSet = async (dateInfo) => {
+    try {
+      // Format dates
+      const startDate = format(dateInfo.start, 'yyyy-MM-dd');
+      const endDate = format(dateInfo.end, 'yyyy-MM-dd');
+      const visibleDate = format(dateInfo.start, 'yyyy-MM-dd');
+      
+      // Check if we've already fetched this range to prevent loops
+      if (lastFetchedRange.current.startDate === startDate && 
+          lastFetchedRange.current.endDate === endDate) {
+        console.log('Skipping redundant bookings fetch for same date range');
+        return;
+      }
+      
+      // Update the last fetched range
+      lastFetchedRange.current = { startDate, endDate };
+      console.log(`Fetching bookings for range: ${startDate} to ${endDate}`);
+      
+      // Fetch bookings for the displayed date range
+      await getBookings(visibleDate, startDate, endDate);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      // Use console error instead of state since we removed the error state
     }
   };
 
+  const handleRefresh = async () => {
+    try {
+      // Get current date in YYYY-MM-DD format
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      // Calculate a date range for the current view (today +/- 14 days)
+      const twoWeeksAgo = format(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+      const twoWeeksLater = format(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+      
+      // Force refresh by bypassing cache
+      await getBookings(today, twoWeeksAgo, twoWeeksLater, true);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      // Use toast notification instead of state error
+      // We'll add toast notifications in a future update
+    }
+  };
+
+  // Track if initial data has been loaded to prevent infinite loops
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  
+  // Load services and initial bookings only once on component mount
+  useEffect(() => {
+    // Guard against multiple loads
+    if (initialDataLoaded) return;
+    
+    const loadInitialData = async () => {
+      try {
+        console.log('Loading initial dashboard data...');
+        
+        // Get services for duration calculations
+        await getServices();
+        
+        // Get current date in YYYY-MM-DD format
+        const today = format(new Date(), 'yyyy-MM-dd');
+        
+        // Calculate a date range for the initial view (today +/- 14 days)
+        const twoWeeksAgo = format(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+        const twoWeeksLater = format(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+        
+        // Fetch bookings for the initial date range
+        await getBookings(today, twoWeeksAgo, twoWeeksLater);
+        
+        // Mark as loaded to prevent future calls
+        setInitialDataLoaded(true);
+        console.log('Initial dashboard data loaded successfully');
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        console.warn('Failed to load initial data. Please refresh the page.');
+      }
+    };
+    
+    loadInitialData();
+    
+    // Empty dependency array - only run once on mount
+  }, []);
+  
+  // Convert bookings to calendar events whenever bookings or services change
+  useEffect(() => {
+    console.log('Bookings data received:', bookings);
+    console.log('Services data:', services);
+    
+    // Check if bookings is an array
+    if (Array.isArray(bookings) && Array.isArray(services)) {
+      console.log(`Processing ${bookings.length} bookings for calendar`);
+      const calendarEvents = bookingsToEvents(bookings, services);
+      console.log('Calendar events generated:', calendarEvents);
+      setEvents(calendarEvents);
+    } else {
+      console.warn('Bookings or services data is not in expected format:', { 
+        bookingsType: typeof bookings, 
+        isBookingsArray: Array.isArray(bookings),
+        bookingsLength: bookings?.length,
+        servicesType: typeof services, 
+        isServicesArray: Array.isArray(services),
+        servicesLength: services?.length
+      });
+    }
+  }, [bookings, services]);
+
+  // Render component
   return (
-    <Box>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Hair Artist Dashboard
-            {lastFetchTime && (
-              <Typography variant="caption" sx={{ ml: 2, opacity: 0.7 }}>
-                Last updated: {format(lastFetchTime, 'h:mm a')}
-              </Typography>
-            )}
-          </Typography>
-          {currentUser?.is_admin && (
-            <>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => navigate('/hair-artist/manage')}
-                sx={{ mr: 2 }}
-              >
-                Manage Hair Artists
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => navigate('/hair-artist/services')}
-                sx={{ mr: 2 }}
-              >
-                Manage Services
-              </Button>
-            </>
-          )}
-          <IconButton color="inherit" onClick={handleLogout}>
-            <LogoutIcon />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-        )}
-
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Typography variant="h5">
-              Appointment Calendar
-            </Typography>
-            <Tooltip title="Refresh appointments">
-              <IconButton 
-                onClick={handleRefresh} 
-                size="small" 
-                sx={{ ml: 1 }}
-                disabled={loading}
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <ToggleButtonGroup
-            value={calendarView}
-            exclusive
-            onChange={handleViewChange}
-            aria-label="calendar view"
-          >
-            <ToggleButton value="timeGridDay" aria-label="day view">
-              Day
-            </ToggleButton>
-            <ToggleButton value="timeGridWeek" aria-label="week view">
-              Week
-            </ToggleButton>
-            <ToggleButton value="dayGridMonth" aria-label="month view">
-              Month
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <Paper elevation={3} sx={{ p: 2, height: 'auto', minHeight: 600 }}>
-            {loading && events.length === 0 ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <FullCalendar
-                ref={calendarRef}
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView={calendarView}
-                headerToolbar={{
-                  left: 'prev,next today',
-                  center: 'title',
-                  right: ''
-                }}
-                events={events}
-                eventClick={handleEventClick}
-                datesSet={handleDatesSet}
-                height="auto"
-                slotMinTime="08:00:00"
-                slotMaxTime="22:30:00"
-                allDaySlot={false}
-                nowIndicator={true}
-                scrollTime={new Date().toISOString().substring(11, 16)}
-                slotDuration="00:15:00"
-                slotLabelInterval="01:00"
-                snapDuration="00:15:00"
-                businessHours={{
-                  daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Sunday - Saturday
-                  startTime: '08:00',
-                  endTime: '22:00',
-                }}
-                weekends={true}
-              />
-            )}
-          </Paper>
-        </LocalizationProvider>
-
-        {/* Event Detail Dialog */}
-        <Dialog open={showEventDialog} onClose={handleCloseDialog}>
-          {selectedEvent && (
-            <>
-              <DialogTitle>
-                Appointment Details
-              </DialogTitle>
-              <DialogContent>
-                <Box sx={{ minWidth: 300, p: 1 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {selectedEvent.title}
-                  </Typography>
-                  <Typography variant="body1">
-                    Date: {format(parseISO(selectedEvent.startStr), 'EEEE, MMMM d, yyyy')}
-                  </Typography>
-                  <Typography variant="body1">
-                    Time: {format(parseISO(selectedEvent.startStr), 'h:mm a')}
-                  </Typography>
-                  <Typography variant="body1">
-                    Client: {selectedEvent.extendedProps.name}
-                  </Typography>
-                  <Typography variant="body1">
-                    Email: {selectedEvent.extendedProps.email}
-                  </Typography>
-                  <Typography variant="body1">
-                    Service: {selectedEvent.extendedProps.service}
-                  </Typography>
-                  <Typography variant="body1">
-                    Status: {selectedEvent.extendedProps.status}
-                  </Typography>
-                </Box>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={handleCloseDialog}>Close</Button>
-              </DialogActions>
-            </>
-          )}
-        </Dialog>
+    <Box sx={{ flexGrow: 1 }}>
+      <DashboardHeader
+        title={`${currentUser?.name || 'Hair Artist'}'s Dashboard`}
+        calendarView={calendarView}
+        onViewChange={handleViewChange}
+        onRefresh={handleRefresh}
+        onLogout={handleLogout}
+        loading={loading}
+      />
+      
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <CalendarView
+          calendarView={calendarView}
+          events={events}
+          loading={loading}
+          handleEventClick={handleEventClick}
+          handleDatesSet={handleDatesSet}
+        />
+        
+        <AppointmentDetailsDialog
+          open={showEventDialog}
+          selectedEvent={selectedEvent}
+          onClose={handleCloseDialog}
+        />
       </Container>
     </Box>
   );
 }
 
-export default HairArtistDashboard; 
+export default HairArtistDashboard;

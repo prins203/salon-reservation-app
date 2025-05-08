@@ -1,24 +1,48 @@
+import serviceServiceImpl from './services/serviceService';
 import apiClient from '../apiClient';
 
+// This file provides backward compatibility with our new modular implementation
 const serviceApi = {
   getAllServices: async () => {
-    const response = await apiClient.get('/services/');
-    return response.data;
+    try {
+      return await serviceServiceImpl.getServices();
+    } catch (error) {
+      console.error('Error fetching all services:', error);
+      throw error;
+    }
   },
 
   createService: async (serviceData) => {
-    const response = await apiClient.post('/services/', serviceData);
-    return response.data;
+    try {
+      // For now, use original implementation as this isn't in our modular service yet
+      const response = await apiClient.post('/services/', serviceData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating service:', error);
+      throw error;
+    }
   },
 
   updateService: async (serviceId, serviceData) => {
-    const response = await apiClient.put(`/services/${serviceId}`, serviceData);
-    return response.data;
+    try {
+      // For now, use original implementation as this isn't in our modular service yet
+      const response = await apiClient.put(`/services/${serviceId}`, serviceData);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating service:', error);
+      throw error;
+    }
   },
 
   deleteService: async (serviceId) => {
-    const response = await apiClient.delete(`/services/${serviceId}`);
-    return response.data;
+    try {
+      // For now, use original implementation as this isn't in our modular service yet
+      const response = await apiClient.delete(`/services/${serviceId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      throw error;
+    }
   }
 };
 
