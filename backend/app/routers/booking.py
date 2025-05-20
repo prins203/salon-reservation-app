@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta, date, time
-from ..models.database import get_db, Booking, Service
+from ..models.database import get_db, Booking, Service, HairArtist
 from ..models.schemas import (
     BookingRequest,
     OTPRequest,
@@ -93,7 +93,8 @@ async def verify_otp_endpoint(otp_request: OTPRequest, db: Session = Depends(get
             date=booking_date,
             time=booking_time,
             status="confirmed",
-            hair_artist_id=otp_request.hair_artist_id
+            hair_artist_id=otp_request.hair_artist_id,
+            gender=otp_request.gender
         )
         db.add(booking)
         db.commit()
@@ -103,15 +104,12 @@ async def verify_otp_endpoint(otp_request: OTPRequest, db: Session = Depends(get
     except HTTPException as http_exc:
         # Re-raise HTTP exceptions directly
         db.rollback()
-        raise http_exc
+        raise
     except Exception as e:
-        print(f"Error in verify-otp: {str(e)}")
         db.rollback()
-        # Return a more user-friendly error message
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error processing your OTP verification. Please ensure all fields are filled correctly."
-        )
+        # Log error and return a generic message
+        print(f"Error verifying OTP: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to verify OTP")
 
 @router.get("/available-slots")
 async def get_available_slots(
@@ -120,87 +118,110 @@ async def get_available_slots(
     service_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
-    """Get available time slots for a given date, considering service duration if provided."""
+    """Get available time slots for a given date, considering service duration and slot gap"""
     try:
+        # Add detailed logging for better diagnostics, similar to our authentication fixes
+        print(f"Generating available slots for date: {date}, hair_artist: {hair_artist_id}, service: {service_id}")
+        
         # Parse the input date
         booking_date = datetime.strptime(date, "%Y-%m-%d").date()
         current_time = datetime.now()
         
-        # Check if the date is a Tuesday
+        # Check if the date is a Tuesday (salon closed)
         if booking_date.weekday() == 1:  # 1 is Tuesday
+            print("Tuesday is a day off - no slots available")
             return []
         
-        # Get service duration if service_id is provided
-        service_duration = 30  # Default to 30 minutes
+        # Get service information if provided
+        service_duration = 30  # Default duration in minutes
+        slot_gap_minutes = 30  # Default slot gap
+        
         if service_id:
             service = db.query(Service).filter(Service.id == service_id).first()
             if service:
                 service_duration = service.duration
+                slot_gap_minutes = service.slot_gap_minutes
+                print(f"Using service: {service.name}, duration: {service_duration}min, slot gap: {slot_gap_minutes}min")
+            else:
+                print(f"Warning: Service ID {service_id} not found, using defaults")
         
-        # If the date is today, only show slots from current time onwards
-        if booking_date == current_time.date():
-            start_time = current_time.replace(second=0, microsecond=0)
-            # Round up to the next 30-minute interval
-            minutes_to_add = 30 - (start_time.minute % 30)
-            start_time = start_time + timedelta(minutes=minutes_to_add)
-            # If current time is before 10 AM, set start time to 10 AM
-            if start_time.time() < datetime.strptime("10:00", "%H:%M").time():
-                start_time = datetime.combine(booking_date, datetime.strptime("10:00", "%H:%M").time())
+        # Define salon hours (9 AM to 5 PM)
+        salon_open = datetime.combine(booking_date, time(9, 0))
+        salon_close = datetime.combine(booking_date, time(17, 0))
+        
+        # For current day bookings, use the current time as the starting point
+        if booking_date == current_time.date() and current_time.time() > salon_open.time():
+            # Use current time as the starting point - this is the key change to show the earliest available slot
+            current_slot = current_time
+            print(f"Booking for today, starting from current time: {current_slot.strftime('%H:%M')}")
         else:
-            start_time = datetime.combine(booking_date, datetime.strptime("10:00", "%H:%M").time())
+            current_slot = salon_open
+            print(f"Booking for future date, starting from opening time: {salon_open.strftime('%H:%M')}")
         
-        end_time = datetime.combine(booking_date, datetime.strptime("22:00", "%H:%M").time())
-        
-        # Get all bookings for the date
+        # Get all bookings for the given date and hair artist
         bookings = db.query(Booking).filter(
             Booking.date == booking_date,
             Booking.hair_artist_id == hair_artist_id,
-            Booking.status == "confirmed"
+            Booking.status != "cancelled"
         ).all()
+        print(f"Found {len(bookings)} existing bookings for this day and artist")
         
-        # Get service info for each booking to determine their duration
-        booked_time_ranges = []
-        for booking in bookings:
-            booking_service_name = booking.service
-            booking_service = db.query(Service).filter(Service.name == booking_service_name).first()
-            
-            booking_duration = 30  # Default duration if service not found
-            if booking_service:
-                booking_duration = booking_service.duration
-            
-            booking_start = datetime.combine(booking.date, booking.time)
-            booking_end = booking_start + timedelta(minutes=booking_duration)
-            
-            booked_time_ranges.append((booking_start, booking_end))
-        
-        # Generate all possible 30-minute slots for the day
         all_slots = []
-        current_slot = start_time
         
-        while current_slot.time() < end_time.time():
-            # Only add slots that are in the future
-            if booking_date > current_time.date() or (booking_date == current_time.date() and current_slot.time() > current_time.time()):
-                # Check if this slot works with the service duration
-                slot_end_time = current_slot + timedelta(minutes=service_duration)
-                
-                # Check if slot ends before closing time
-                if slot_end_time.time() <= end_time.time():
-                    # Check if slot conflicts with any booking
-                    is_available = True
-                    for booked_start, booked_end in booked_time_ranges:
-                        # Check for overlap with existing bookings
-                        if (current_slot < booked_end and slot_end_time > booked_start):
-                            is_available = False
-                            break
-                    
-                    if is_available:
-                        all_slots.append(current_slot.strftime("%H:%M"))
+        # Generate time slots
+        while current_slot < salon_close:
+            # End time of the current appointment slot
+            end_time = current_slot + timedelta(minutes=service_duration)
             
-            # Move to next 30-minute slot
-            current_slot = current_slot + timedelta(minutes=30)
+            # Check if the end time is after the salon closes
+            if end_time > salon_close:
+                print(f"Stopping slot generation at {current_slot.strftime('%H:%M')} as it would end after closing")
+                break
+            
+            is_available = True
+            
+            # Check if the current slot overlaps with any existing bookings
+            for booking in bookings:
+                booking_start = datetime.combine(booking_date, booking.time)
+                service_name = booking.service
+                
+                # Find service duration for this booking
+                booking_service = db.query(Service).filter(Service.name == service_name).first()
+                booking_duration = 30  # Default duration if service not found
+                if booking_service:
+                    booking_duration = booking_service.duration
+                
+                booking_end = booking_start + timedelta(minutes=booking_duration)
+                
+                # Check for overlap
+                if (current_slot < booking_end and end_time > booking_start):
+                    print(f"Slot {current_slot.strftime('%H:%M')} conflicts with booking {booking.id} at {booking_start.strftime('%H:%M')}")
+                    is_available = False
+                    break
+            
+            if is_available:
+                time_str = current_slot.strftime("%H:%M")
+                print(f"Adding available slot: {time_str}")
+                all_slots.append(time_str)
+            
+            # Key change: Move to next slot using the service's slot gap setting
+            # This makes the slot gaps configurable
+            if booking_date == current_time.date() and len(all_slots) == 0:
+                # For first slot of current day, increment by just 15 minutes to find earliest slot
+                # This helps find the exact earliest available slot rather than only 30-min boundaries
+                increment = min(15, slot_gap_minutes)
+                print(f"Looking for earliest slot, incrementing by {increment} minutes")
+            else:
+                # For subsequent slots or future dates, use the configured slot gap
+                increment = slot_gap_minutes
+            
+            current_slot = current_slot + timedelta(minutes=increment)
         
-        return sorted(all_slots)
+        slots = sorted(all_slots)
+        print(f"Generated {len(slots)} available slots")
+        return slots
     except Exception as e:
+        print(f"Error generating available slots: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/bookings", response_model=List[BookingResponse])
@@ -287,6 +308,7 @@ async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
             time=booking_time,
             service=booking.service,
             hair_artist_id=booking.hair_artist_id,
+            gender=booking.gender,
             status="pending"
         )
         
@@ -302,4 +324,4 @@ async def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))

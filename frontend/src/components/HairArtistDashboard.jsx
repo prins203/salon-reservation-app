@@ -140,25 +140,45 @@ function HairArtistDashboard() {
   
   // Convert bookings to calendar events whenever bookings or services change
   useEffect(() => {
-    console.log('Bookings data received:', bookings);
-    console.log('Services data:', services);
+    // Define an async function inside the effect to handle the async bookingsToEvents
+    const processBookings = async () => {
+      console.log('Bookings data received:', bookings);
+      console.log('Services data:', services);
+      
+      // Check if bookings is an array
+      if (Array.isArray(bookings) && Array.isArray(services)) {
+        try {
+          console.log(`Processing ${bookings.length} bookings for calendar`);
+          
+          // Get the latest service durations if any services were recently modified
+          // This addresses the issue where durations become inaccurate after changes
+          const forceRefresh = services.some(s => 
+            s._lastModified && (new Date() - new Date(s._lastModified) < 5 * 60 * 1000)
+          );
+          
+          // Now properly await the async function
+          const calendarEvents = await bookingsToEvents(bookings, services, forceRefresh);
+          console.log('Calendar events generated:', calendarEvents);
+          setEvents(calendarEvents);
+        } catch (error) {
+          console.error('Error generating calendar events:', error);
+          // Use more meaningful error message following our authentication improvements approach
+          console.error(`Failed to process ${bookings.length} bookings with ${services.length} services.`);
+        }
+      } else {
+        console.warn('Bookings or services data is not in expected format:', { 
+          bookingsType: typeof bookings, 
+          isBookingsArray: Array.isArray(bookings),
+          bookingsLength: bookings?.length,
+          servicesType: typeof services, 
+          isServicesArray: Array.isArray(services),
+          servicesLength: services?.length
+        });
+      }
+    };
     
-    // Check if bookings is an array
-    if (Array.isArray(bookings) && Array.isArray(services)) {
-      console.log(`Processing ${bookings.length} bookings for calendar`);
-      const calendarEvents = bookingsToEvents(bookings, services);
-      console.log('Calendar events generated:', calendarEvents);
-      setEvents(calendarEvents);
-    } else {
-      console.warn('Bookings or services data is not in expected format:', { 
-        bookingsType: typeof bookings, 
-        isBookingsArray: Array.isArray(bookings),
-        bookingsLength: bookings?.length,
-        servicesType: typeof services, 
-        isServicesArray: Array.isArray(services),
-        servicesLength: services?.length
-      });
-    }
+    // Call the async function
+    processBookings();
   }, [bookings, services]);
 
   // Render component

@@ -33,6 +33,7 @@ class Service(Base):
     description = Column(String)
     price = Column(Float)
     duration = Column(Integer)  # in minutes
+    slot_gap_minutes = Column(Integer, default=30)  # Default 30-minute gaps between slots
     gender_specificity = Column(String, default="both")  # "male", "female", or "both"
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

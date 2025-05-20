@@ -18,6 +18,7 @@ const ServiceManagement = () => {
     description: '',
     duration: '',
     price: '',
+    slot_gap_minutes: '30',
     gender_specificity: 'both'
   });
   const { currentUser } = useAuth();
@@ -52,7 +53,8 @@ const ServiceManagement = () => {
       const serviceData = {
         ...formData,
         duration: parseInt(formData.duration),
-        price: parseFloat(formData.price)
+        price: parseFloat(formData.price),
+        slot_gap_minutes: parseInt(formData.slot_gap_minutes)
       };
 
       if (editingService) {
@@ -66,6 +68,7 @@ const ServiceManagement = () => {
         description: '',
         duration: '',
         price: '',
+        slot_gap_minutes: '30',
         gender_specificity: 'both'
       });
       setEditingService(null);
@@ -82,6 +85,7 @@ const ServiceManagement = () => {
       description: service.description || '',
       duration: service.duration?.toString() || '',
       price: service.price?.toString() || '',
+      slot_gap_minutes: service.slot_gap_minutes?.toString() || '30',
       gender_specificity: service.gender_specificity || 'both'
     });
   };
@@ -167,6 +171,21 @@ const ServiceManagement = () => {
                 required
               />
             </div>
+
+            <div className="form-group">
+              <label>Time Slot Gap (minutes)</label>
+              <input
+                type="number"
+                name="slot_gap_minutes"
+                value={formData.slot_gap_minutes}
+                onChange={handleInputChange}
+                min="5"
+                max="60"
+                step="5"
+                required
+              />
+              <small className="help-text">Defines how many minutes between available time slots</small>
+            </div>
             
             <div className="form-group">
               <label>Gender Specificity</label>
@@ -193,6 +212,7 @@ const ServiceManagement = () => {
                 <div className="table-cell">Service Name</div>
                 <div className="table-cell">Description</div>
                 <div className="table-cell">Duration</div>
+                <div className="table-cell">Slot Gap</div>
                 <div className="table-cell">Price</div>
                 <div className="table-cell">Gender</div>
                 <div className="table-cell actions">Actions</div>
@@ -202,6 +222,7 @@ const ServiceManagement = () => {
                   <div className="table-cell">{service.name}</div>
                   <div className="table-cell">{service.description}</div>
                   <div className="table-cell">{service.duration} minutes</div>
+                  <div className="table-cell">{service.slot_gap_minutes || 30} minutes</div>
                   <div className="table-cell">${service.price}</div>
                   <div className="table-cell">{service.gender_specificity}</div>
                   <div className="table-cell actions">

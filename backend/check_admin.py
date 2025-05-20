@@ -5,12 +5,12 @@ def check_admin():
     db = SessionLocal()
     try:
         # Check if admin exists
-        admin = db.query(HairArtist).filter(HairArtist.email == "prins.patel000@gmail.com").first()
+        admin = db.query(HairArtist).filter(HairArtist.email == "abc.def000@gmail.com").first()
         if not admin:
             # Create admin user
             admin = HairArtist(
-                name="Vikas",
-                email="prins.patel000@gmail.com",
+                name="Sam",
+                email="abc.def000@gmail.com",
                 hashed_password=get_password_hash("aone1234"),
                 is_admin=True
             )

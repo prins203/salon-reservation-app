@@ -25,6 +25,20 @@ def list_services(
     services = db.query(Service).offset(skip).limit(limit).all()
     return services
 
+@router.get("/services/{service_id}", response_model=ServiceSchema)
+def get_service(
+    service_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a specific service by ID to ensure we always have the latest duration information"""
+    service = db.query(Service).filter(Service.id == service_id).first()
+    if not service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Service not found"
+        )
+    return service
+
 @router.post("/services/", response_model=ServiceSchema)
 def create_service(
     service: ServiceCreate,

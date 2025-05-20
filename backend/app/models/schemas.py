@@ -26,6 +26,7 @@ class ServiceBase(BaseModel):
     description: str
     duration: int  # in minutes
     price: float
+    slot_gap_minutes: int = 30  # Default 30-minute gaps between slots
     gender_specificity: str = "both"  # "male", "female", or "both"
 
 class ServiceCreate(ServiceBase):
